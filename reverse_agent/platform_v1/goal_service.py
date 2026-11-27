@@ -1768,10 +1768,13 @@ class GoalService:
                                 "reason": "model_review_round_limit" if round_limited else "routing_retry_budget_exhausted"
                             }
                             if round_limited:
+                                raw_open = list(evidence["result"].get("findings") or ())
+                                kept_open = raw_open[:20]
                                 decision_payload.update({
                                     "handoff_action": "open_draft_pr",
                                     "producer_task_id": producer.id,
-                                    "open_findings": list(evidence["result"].get("findings") or ())[:6],
+                                    "open_findings": kept_open,
+                                    "omitted_open_findings": max(0, len(raw_open) - len(kept_open)),
                                 })
                             self.store.block_model_selection(failed.id, decision=decision_payload)
                         continue

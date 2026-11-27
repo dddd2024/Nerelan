@@ -559,12 +559,26 @@ def _settlement_basis_breakdown(
                 if not isinstance(doc, Mapping):
                     bs["unknown"]["rows"] += 1
                     continue
-                basis = str(doc.get("basis") or "").lower()
-                cash = doc.get("cash_usd")
-                list_p = doc.get("list_price_usd") if doc.get("list_price_usd") is not None else doc.get("cost_usd")
+                basis = str(doc.get("cost_basis") or doc.get("basis") or "").lower()
+                cash = next((v for v in (doc.get("cash_usd"), doc.get("cost_units") if basis in {"payg", "cash", "cash_usd"} else None)
+                             if isinstance(v, (int, float)) and not isinstance(v, bool)), None)
+                list_p = next((v for v in (doc.get("list_price_usd"), doc.get("price_units"), doc.get("cost_usd"))
+                               if isinstance(v, (int, float)) and not isinstance(v, bool)), None)
                 cred = doc.get("credits") if doc.get("credits") is not None else doc.get("reported_credits")
+                actual_wins = doc.get("actual_windows") if isinstance(doc.get("actual_windows"), Mapping) else {}
+                has_quota_delta = any(isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0 for v in actual_wins.values())
+                tok_raw = doc.get("total_tokens")
+                if isinstance(tok_raw, (int, float)) and not isinstance(tok_raw, bool) and tok_raw > 0:
+                    tok_count = int(tok_raw)
+                elif isinstance(doc.get("tokens"), Mapping):
+                    tok_count = sum(int(v) for v in doc["tokens"].values()
+                                    if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0)
+                elif isinstance(doc.get("tokens"), (int, float)) and not isinstance(doc.get("tokens"), bool) and doc["tokens"] > 0:
+                    tok_count = int(doc["tokens"])
+                else:
+                    tok_count = 0
                 classified = False
-                if isinstance(cash, (int, float)) and not isinstance(cash, bool) and (cash > 0 or basis in {"payg", "cash", "cash_usd"}):
+                if cash is not None and (cash > 0 or basis in {"payg", "cash", "cash_usd"}):
                     bs["cash_usd"]["rows"] += 1
                     bs["cash_usd"]["amount"] = round(bs["cash_usd"]["amount"] + float(cash), 6)
                     classified = True
@@ -572,15 +586,14 @@ def _settlement_basis_breakdown(
                     bs["credits"]["rows"] += 1
                     bs["credits"]["amount"] = round(bs["credits"]["amount"] + float(cred), 6)
                     classified = True
-                elif basis in {"subscription", "subscription_quota", "quota", "native"} or doc.get("billing_class") == "subscription":
+                elif basis in {"subscription", "subscription_quota", "quota", "native"} or doc.get("billing_class") == "subscription" or has_quota_delta:
                     bs["subscription_quota"]["rows"] += 1
-                    tok = doc.get("total_tokens") or doc.get("tokens") or 0
-                    if isinstance(tok, (int, float)) and not isinstance(tok, bool) and tok > 0:
-                        bs["subscription_quota"]["tokens"] += int(tok)
+                    if tok_count > 0:
+                        bs["subscription_quota"]["tokens"] += tok_count
                     classified = True
-                elif isinstance(list_p, (int, float)) and not isinstance(list_p, bool) and list_p > 0:
+                elif (list_p is not None and list_p > 0) or basis in {"list_price", "list_price_estimate"}:
                     bs["list_price_usd"]["rows"] += 1
-                    bs["list_price_usd"]["amount"] = round(bs["list_price_usd"]["amount"] + float(list_p), 6)
+                    bs["list_price_usd"]["amount"] = round(bs["list_price_usd"]["amount"] + float(list_p or 0.0), 6)
                     classified = True
                 if not classified:
                     bs["unknown"]["rows"] += 1

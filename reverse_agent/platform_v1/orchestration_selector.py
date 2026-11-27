@@ -74,7 +74,7 @@ def fast_path_eligible(
     import fnmatch
 
     r2_patterns = (
-        "AGENTS.md", "docs/agents/*", ".github/workflows/*", "reverse_agent/landing_review.py",
+        "agents.md", "docs/agents/*", ".github/workflows/*", "reverse_agent/landing_review.py",
         "requirements*.txt", "pyproject.toml", "frontend/package.json", "frontend/package-lock.json",
     )
     if difficulty is None:
@@ -94,7 +94,11 @@ def fast_path_eligible(
     elif len(paths) > 4:
         reasons.append("too_many_changed_paths")
     for p in paths:
-        if any(fnmatch.fnmatchcase(p, pat) for pat in r2_patterns):
+        norm = p
+        while norm.startswith("./"):
+            norm = norm[2:]
+        norm = norm.lstrip("/").lower()
+        if any(fnmatch.fnmatchcase(norm, pat) for pat in r2_patterns):
             reasons.append(f"r2_sensitive_path:{p}")
             break
     eligible = not reasons

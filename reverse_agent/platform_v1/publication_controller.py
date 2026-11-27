@@ -46,10 +46,11 @@ def _round_limit_findings_markdown(store: Any, control_store: Any, goal_id: str)
         if detail.get("handoff_action") != "open_draft_pr":
             continue
         findings = detail.get("open_findings") or ()
-        if not isinstance(findings, list) or not findings:
+        omitted = int(detail.get("omitted_open_findings") or 0)
+        if not isinstance(findings, list) or (not findings and omitted <= 0):
             continue
         lines.append("\n\n### Open Review Findings (Round Limit Reached)")
-        for item in findings[:6]:
+        for item in findings:
             if isinstance(item, Mapping):
                 sev = str(item.get("severity") or "unknown").upper()
                 path = str(item.get("path") or "")
@@ -57,6 +58,8 @@ def _round_limit_findings_markdown(store: Any, control_store: Any, goal_id: str)
                 loc = f"{path}:{line}" if path and line else path
                 msg = str(item.get("message") or "").strip()
                 lines.append(f"- [{sev}] {loc}: {msg}" if loc else f"- [{sev}] {msg}")
+        if omitted > 0:
+            lines.append(f"- ... (+{omitted} additional open findings omitted)")
         break
     return "\n".join(lines)
 

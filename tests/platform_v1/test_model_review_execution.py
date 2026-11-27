@@ -578,6 +578,21 @@ def test_review_round_limit_records_draft_pr_handoff_and_active_issue_dedup(revi
     handoff_md = _round_limit_findings_markdown(store, control, goal_id)
     assert "### Open Review Findings (Round Limit Reached)" in handoff_md
     assert "app.py:1: Incorrect value" in handoff_md
+    assert decision["omitted_open_findings"] == 0
+    # Verify >6 findings plus omitted count render without silent loss.
+    store._conn.execute(
+        "UPDATE tasks SET failure_detail = ? WHERE id = ?",
+        (json.dumps({
+            "reason": "model_review_round_limit",
+            "handoff_action": "open_draft_pr",
+            "open_findings": [{"path": f"f{i}.py", "line": i + 1, "severity": "high", "message": f"msg-{i}"} for i in range(8)],
+            "omitted_open_findings": 3,
+        }), consumer),
+    )
+    store._conn.commit()
+    handoff_md_many = _round_limit_findings_markdown(store, control, goal_id)
+    assert "f7.py:8: msg-7" in handoff_md_many
+    assert "(+3 additional open findings omitted)" in handoff_md_many
 
     # Active source issue dedup during launch and explicit create(deduplicate_active_issue=True).
     win_id = control.get_goal(goal_id).window_id
