@@ -131,11 +131,15 @@ def aged_evidence(selected: Mapping[str, Any] | None, *, now: float) -> dict[str
 def task_need(records: Iterable[Mapping[str, Any]], *, binding: str, kind: str,
               difficulty: str, model: str, clock: Callable[[], float] = time.time,
               prior: Mapping[str, float] = DEFAULT_PRIOR, min_samples: int = 5,
-              cold_gap: float = 3600, cold_input: float = 12000) -> dict[str, Any]:
+              cold_gap: float = 3600, cold_input: float = 12000,
+              cold_turn_split: bool = False) -> dict[str, Any]:
     """Linear-interpolated p80 and median; sparse history is floored by priors.
 
     Cold starts move cached input into uncached input and add context-loading cost.
-    Missing timestamps conservatively count as cold. History never crosses bindings.
+    When ``cold_turn_split=True`` and ``turn_count > 1``, only the cold first turn
+    (``1 / turn_count`` of ``cache_read``) is promoted to uncached input while
+    intra-session warm turns stay in ``cache_read``. Missing timestamps conservatively
+    count as cold. History never crosses bindings.
     """
     if min_samples < 1 or cold_gap < 0 or cold_input < 0:
         raise ValueError("invalid estimation policy")
@@ -158,40 +162,250 @@ def task_need(records: Iterable[Mapping[str, Any]], *, binding: str, kind: str,
                    quota_forecast._quantile(values, .8) if values else floor * 1.5,
             "samples": len(values),
         }
-    if cold:
+    cold_miss_fraction = 1.0 if cold else 0.0
+    if cold and cold_turn_split and rows:
+        def _row_frac(row: Mapping[str, Any]) -> float:
+            tc = row.get("turn_count")
+            return (1.0 / max(1.0, float(tc))) if (_number(tc) and tc > 1) else 1.0
+
+        row_fracs = sorted(_row_frac(r) for r in rows)
+        cold_miss_fraction = median(row_fracs)
+        adj_in_vals: list[float] = []
+        adj_cr_vals: list[float] = []
+        sample_costs: list[float] = []
+        for r in rows:
+            tok = r["tokens"]
+            r_in = float(tok["input"]) if _number(tok.get("input")) else None
+            r_cr = float(tok["cache_read"]) if _number(tok.get("cache_read")) else 0.0
+            frac = _row_frac(r)
+            shifted = r_cr * frac
+            if r_in is not None:
+                adj_in_vals.append(r_in + shifted + cold_input)
+            adj_cr_vals.append(r_cr - shifted)
+            sample_tok = {
+                k: float(tok[k]) if _number(tok.get(k)) else float(prior[k])
+                for k in DEFAULT_PRIOR if k != "turn_count"
+            }
+            if r_in is not None:
+                sample_tok["input"] = r_in + shifted + cold_input
+            else:
+                sample_tok["input"] = prior["input"] + shifted + cold_input
+            sample_tok["cache_read"] = max(0.0, r_cr - shifted)
+            eq = pricing.equivalent_cost(model, sample_tok).get("usd")
+            if _number(eq):
+                sample_costs.append(float(eq))
+
+        if adj_in_vals:
+            s_in = sorted(adj_in_vals)
+            estimates["input"]["median"] = (
+                max(median(s_in), prior["input"] + cold_input) if len(s_in) < min_samples else median(s_in)
+            )
+            estimates["input"]["p80"] = (
+                max(quota_forecast._quantile(s_in, .8), prior["input"] * 1.5 + cold_input)
+                if len(s_in) < min_samples else quota_forecast._quantile(s_in, .8)
+            )
+        else:
+            estimates["input"]["median"] += cold_input
+            estimates["input"]["p80"] += cold_input
+        if adj_cr_vals:
+            s_cr = sorted(adj_cr_vals)
+            estimates["cache_read"]["median"] = median(s_cr)
+            estimates["cache_read"]["p80"] = quota_forecast._quantile(s_cr, .8)
+        prior_units = {
+            q: pricing.equivalent_cost(model, {k: v[q] for k, v in estimates.items() if k != "turn_count"}).get("usd")
+            for q in ("median", "p80")
+        }
+        if sample_costs and len(rows) >= min_samples:
+            s_cost = sorted(sample_costs)
+            units = {
+                "median": median(s_cost),
+                "p80": max(median(s_cost), quota_forecast._quantile(s_cost, .8)),
+            }
+        else:
+            s_cost = sorted(sample_costs)
+            units = {
+                "median": max(median(s_cost), prior_units["median"]) if s_cost and _number(prior_units["median"]) else prior_units["median"],
+                "p80": max(quota_forecast._quantile(s_cost, .8), prior_units["p80"]) if s_cost and _number(prior_units["p80"]) else prior_units["p80"],
+            }
+            if _number(units.get("median")) and _number(units.get("p80")):
+                units["p80"] = max(units["p80"], units["median"])
+    elif cold:
         for q in ("median", "p80"):
-            estimates["input"][q] += estimates["cache_read"][q] + cold_input
-            estimates["cache_read"][q] = 0
-    units = {q: pricing.equivalent_cost(model, {k: v[q] for k, v in estimates.items()
-                                               if k != "turn_count"}).get("usd")
-             for q in ("median", "p80")}
+            shifted = estimates["cache_read"][q]
+            estimates["input"][q] += shifted + cold_input
+            estimates["cache_read"][q] = 0.0
+        units = {q: pricing.equivalent_cost(model, {k: v[q] for k, v in estimates.items()
+                                                   if k != "turn_count"}).get("usd")
+                 for q in ("median", "p80")}
+    else:
+        units = {q: pricing.equivalent_cost(model, {k: v[q] for k, v in estimates.items()
+                                                   if k != "turn_count"}).get("usd")
+                 for q in ("median", "p80")}
     return {"binding": binding, "kind": kind, "difficulty": difficulty, "model": model,
             "estimated_at": quota_forecast.iso(now),
             "policy": {"prior": dict(prior), "min_samples": min_samples, "cold_gap": cold_gap, "cold_input": cold_input},
             "history": [{key: r.get(key) for key in ("task_id", "claim_epoch", "binding_ref", "kind", "difficulty",
                          "ok", "measured", "tokens", "turn_count", "observed_at")} for r in rows], "tokens": estimates,
-            "units": units, "cold_start": cold, "samples": len(rows),
+            "units": units, "cold_start": cold, "cache_mode": "cold" if cold else "warm",
+            "cold_miss_fraction": cold_miss_fraction, "samples": len(rows),
             "uncertain": any(v["samples"] < min_samples for v in estimates.values())}
 
 
+CALIBRATION_HALF_LIFE_DAYS = 3.0
+CALIBRATION_MAX_AGE_DAYS = 7.0
+ATTRIBUTABLE_MAX_AGE_DAYS = 14.0
+DELTA_MIN_CONFIDENT_SAMPLES = 3
+DELTA_MAX_WINDOW_RATE_RATIO = 4.0
+
+
+def effective_calibration(
+    rates: Mapping[str, Any],
+    evidence: Mapping[str, Any] | None = None,
+    *,
+    now: float | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Compute aged, outlier-filtered, confidence-weighted calibration rates."""
+    now_ts = time.time() if now is None else float(now)
+    normalized = {canonical_window(k): float(v) for k, v in rates.items() if _number(v) and v > 0}
+    ev = evidence if isinstance(evidence, Mapping) else {}
+    live_windows = {
+        canonical_window(w) for w in (ev.get("live_capacity_windows") or ())
+        if isinstance(w, str) and w.strip()
+    }
+    if not ev:
+        empty_res: dict[str, dict[str, Any]] = {}
+        for window in normalized:
+            if window in live_windows:
+                empty_res[window] = {
+                    "rate": normalized[window], "confidence": 1.0, "basis": "live_capacity",
+                    "age_days": 0.0, "samples": 1, "reason": "ok",
+                }
+            else:
+                empty_res[window] = {
+                    "rate": None, "confidence": 0.0, "basis": "unverified",
+                    "age_days": None, "samples": 1, "reason": "missing_timestamp",
+                }
+        return empty_res
+
+    basis = str(ev.get("basis") or "")
+    is_delta = basis == "provider_delta_lower_bound"
+    raw_samples = ev.get("delta_samples") if isinstance(ev.get("delta_samples"), Mapping) else {}
+    observed_at = None
+    if is_delta and isinstance(ev.get("delta_after"), Mapping):
+        observed_at = quota_forecast.parse_time(ev["delta_after"].get("observed_at"))
+    elif isinstance(ev.get("after"), Mapping):
+        observed_at = quota_forecast.parse_time(ev["after"].get("observed_at"))
+
+    max_age = CALIBRATION_MAX_AGE_DAYS if is_delta else ATTRIBUTABLE_MAX_AGE_DAYS
+    age_days = max(0.0, (now_ts - observed_at) / 86400.0) if observed_at is not None else None
+    if observed_at is None or age_days is None:
+        age_weight = 0.0
+    elif age_days > max_age:
+        age_weight = 0.0
+    elif is_delta:
+        age_weight = 0.5 ** (age_days / CALIBRATION_HALF_LIFE_DAYS)
+    else:
+        age_weight = 1.0
+
+    # Robust per-window rate + outlier trimming when >= 3 samples exist.
+    robust: dict[str, tuple[float, int]] = {}
+    for window, rate in normalized.items():
+        series = [float(x) for x in (raw_samples.get(window) or ()) if _number(x) and x > 0]
+        if len(series) >= 3:
+            raw_med = median(series)
+            filtered = [x for x in series if 0.2 * raw_med <= x <= 5.0 * raw_med]
+            chosen = filtered if filtered else series
+            robust[window] = (median(chosen), len(chosen))
+        elif series:
+            robust[window] = (median(series), len(series))
+        else:
+            robust[window] = (rate, 1)
+
+    result: dict[str, dict[str, Any]] = {}
+    weekly_rate = robust.get("weekly", (None, 0))[0]
+    for window, (rate, sample_count) in robust.items():
+        if window in live_windows and window in normalized:
+            result[window] = {
+                "rate": normalized[window], "confidence": 1.0, "basis": "live_capacity",
+                "age_days": 0.0, "samples": 1, "reason": "ok",
+            }
+            continue
+        if observed_at is None or age_days is None:
+            result[window] = {
+                "rate": None, "confidence": 0.0, "basis": basis or "unverified",
+                "age_days": None, "samples": sample_count, "reason": "missing_timestamp",
+            }
+            continue
+        if age_weight <= 0.0:
+            result[window] = {
+                "rate": None, "confidence": 0.0, "basis": basis or "expired",
+                "age_days": round(age_days, 2), "samples": sample_count, "reason": "calibration_expired",
+            }
+            continue
+        if (is_delta and window == "five_hour" and sample_count < DELTA_MIN_CONFIDENT_SAMPLES
+                and weekly_rate is not None and weekly_rate > rate * DELTA_MAX_WINDOW_RATE_RATIO):
+            # A sparse five_hour delta far below weekly rate reflects heavy external 5h noise.
+            result[window] = {
+                "rate": None, "confidence": 0.0, "basis": basis,
+                "age_days": round(age_days, 2), "samples": sample_count, "reason": "cross_window_outlier",
+            }
+            continue
+        sample_weight = min(1.0, sample_count / float(DELTA_MIN_CONFIDENT_SAMPLES)) if is_delta else 1.0
+        confidence = age_weight * sample_weight
+        result[window] = {
+            "rate": rate, "confidence": confidence, "basis": basis or "calibrated",
+            "age_days": round(age_days, 2), "samples": sample_count, "reason": "ok",
+        }
+    return result
+
+
 def window_need(need: Mapping[str, Any], account_ref: str,
-                calibrations: Mapping[str, Mapping[str, float]]) -> dict[str, Any]:
+                calibrations: Mapping[str, Mapping[str, float]], *,
+                calibration_evidence: Mapping[str, Mapping[str, Any]] | None = None,
+                now: float | None = None) -> dict[str, Any]:
     """Convert measured price units per percentage point, independently per account/window."""
-    account = calibrations.get(account_ref, {})
-    account = {canonical_window(name): rate for name, rate in account.items()}
-    windows, prior = {}, []
+    raw_account = calibrations.get(account_ref, {})
+    ev = calibration_evidence.get(account_ref) if calibration_evidence is not None else None
+    effective = effective_calibration(raw_account, ev, now=now) if calibration_evidence is not None else None
+    account = {canonical_window(name): rate for name, rate in raw_account.items()}
+    windows, prior, cal_meta = {}, [], {}
     for window in ("five_hour", "weekly"):
+        prior_w = dict(UNCALIBRATED_WINDOW_NEED[window])
+        if effective is not None and window in effective:
+            info = effective[window]
+            cal_meta[window] = info
+            rate = info.get("rate")
+            conf = float(info.get("confidence") or 0.0)
+            if _number(rate) and rate > 0 and conf > 0.0:
+                calibrated = {q: units / rate if _number(units) else None for q, units in need["units"].items()}
+                if conf < 1.0:
+                    windows[window] = {
+                        q: max(calibrated[q], conf * calibrated[q] + (1.0 - conf) * prior_w[q])
+                        if _number(calibrated.get(q)) and _number(prior_w.get(q))
+                        else calibrated.get(q)
+                        for q in prior_w
+                    }
+                    prior.append(window)
+                else:
+                    windows[window] = calibrated
+            else:
+                windows[window] = prior_w
+                prior.append(window)
+            continue
         rate = account.get(window)
         if _number(rate) and rate > 0:
             windows[window] = {q: units / rate if _number(units) else None for q, units in need["units"].items()}
         else:
             # Uncalibrated account: a wide conservative prior instead of an unknown need,
             # so a fresh observation can still admit work (never an indefinite hold).
-            windows[window] = dict(UNCALIBRATED_WINDOW_NEED[window])
+            windows[window] = prior_w
             prior.append(window)
-    return {"account_ref": account_ref, "windows": windows, "estimate": dict(need), "calibration": dict(account),
-            "prior_windows": prior,
-            "uncertain": need["uncertain"] or bool(prior) or any(v is None for w in windows.values() for v in w.values())}
+    out = {"account_ref": account_ref, "windows": windows, "estimate": dict(need), "calibration": dict(account),
+           "prior_windows": prior,
+           "uncertain": need["uncertain"] or bool(prior) or any(v is None for w in windows.values() for v in w.values())}
+    if cal_meta:
+        out["calibration_meta"] = cal_meta
+    return out
 
 
 def release_weekly_reserve(need, evidence, *, release_hours, now):

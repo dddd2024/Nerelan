@@ -943,3 +943,99 @@ def test_mixed_partial_and_unknown_in_non_owner_window_uses_reservation_floor(tm
     res = store._conn.execute("SELECT state, observed_token_units FROM platform_budget_reservations WHERE task_id=?", (task.id,)).fetchone()
     assert (res["state"], res["observed_token_units"]) == ("UNKNOWN", None)
     store._conn.close()
+
+
+def test_cold_turn_split_and_calibration_aging_shrinkage_and_outlier_guard():
+    # Multi-turn cold start only shifts turn-1 cache_read (1/turn_count) into uncached input.
+    records = [{
+        "binding_ref": "b", "kind": "code", "difficulty": "easy", "ok": True,
+        "tokens": {"input": 100, "cache_read": 400, "output": 50},
+        "turn_count": 4, "observed_at": "2026-11-01T00:00:00Z",
+    } for _ in range(5)]
+    split = reservation.task_need(
+        records, binding="b", kind="code", difficulty="easy", model="unknown",
+        clock=lambda: 2_000_000_000.0, cold_gap=3600, cold_input=1000, cold_turn_split=True,
+    )
+    assert split["cold_start"] is True
+    assert split["cache_mode"] == "cold"
+    assert split["cold_miss_fraction"] == pytest.approx(0.25)
+    assert split["tokens"]["input"]["median"] == pytest.approx(100 + 100 + 1000)
+    assert split["tokens"]["cache_read"]["median"] == pytest.approx(300)
+
+    # Mixed turn counts [1, 1, 1, 100, 100] must keep p80 >= median (never inverse-divide p80 below median).
+    mixed = [{
+        "binding_ref": "b", "kind": "code", "difficulty": "easy", "ok": True,
+        "tokens": {"input": 1000, "cache_read": 1_000_000, "output": 1000},
+        "turn_count": tc, "observed_at": "2026-11-01T00:00:00Z",
+    } for tc in (1, 1, 1, 100, 100)]
+    mixed_need = reservation.task_need(
+        mixed, binding="b", kind="code", difficulty="easy", model="gpt-6.1-sol",
+        clock=lambda: 2_000_000_000.0, cold_gap=3600, cold_input=0, cold_turn_split=True,
+    )
+    assert mixed_need["units"]["p80"] >= mixed_need["units"]["median"]
+
+    # Reproduction of live c38efd6a74a2 failure: single 2026-11-14 lower-bound sample (13 days old)
+    # must expire cleanly back to conservative uncalibrated prior rather than locking at 324% -> 90%.
+    stale_now = reservation.quota_forecast.parse_time("2026-11-27T06:00:00Z")
+    stale_ev = {
+        "basis": "provider_delta_lower_bound",
+        "delta_samples": {"five_hour": [0.003800625], "weekly": [0.02027]},
+        "delta_after": {"observed_at": "2026-11-14T15:11:01Z"},
+    }
+    need = {"units": {"median": 0.4, "p80": 0.9}, "uncertain": False}
+    stale_win = reservation.window_need(
+        need, "c38", {"c38": {"five_hour": 0.003800625, "weekly": 0.02027}},
+        calibration_evidence={"c38": stale_ev}, now=stale_now,
+    )
+    assert stale_win["windows"]["five_hour"] == reservation.UNCALIBRATED_WINDOW_NEED["five_hour"]
+    assert stale_win["windows"]["weekly"] == reservation.UNCALIBRATED_WINDOW_NEED["weekly"]
+    assert stale_win["calibration_meta"]["five_hour"]["reason"] == "calibration_expired"
+
+    # Fresh (1 day old) single noisy 5h sample vs clean weekly triggers cross_window_outlier guard.
+    fresh_now = reservation.quota_forecast.parse_time("2026-11-27T06:00:00Z")
+    fresh_noisy = {
+        "basis": "provider_delta_lower_bound",
+        "delta_samples": {"five_hour": [0.003800625], "weekly": [0.02027]},
+        "delta_after": {"observed_at": "2026-11-26T06:00:00Z"},
+    }
+    eff_noisy = reservation.effective_calibration(
+        {"five_hour": 0.003800625, "weekly": 0.02027}, fresh_noisy, now=fresh_now,
+    )
+    assert eff_noisy["five_hour"]["reason"] == "cross_window_outlier"
+    assert eff_noisy["five_hour"]["confidence"] == 0.0
+    assert 0.2 < eff_noisy["weekly"]["confidence"] < 0.35
+
+    # >= 3 samples trim extreme outliers and yield full confidence when fresh.
+    trimmed_ev = {
+        "basis": "provider_delta_lower_bound",
+        "delta_samples": {"five_hour": [0.001, 0.05, 0.052, 0.048]},
+        "delta_after": {"observed_at": "2026-11-27T06:00:00Z"},
+    }
+    eff_clean = reservation.effective_calibration({"five_hour": 0.001}, trimmed_ev, now=fresh_now)
+    assert eff_clean["five_hour"]["rate"] == pytest.approx(0.05)
+    assert eff_clean["five_hour"]["confidence"] == pytest.approx(1.0)
+
+    # Finding 1 guard: partial-confidence blend is monotonic and NEVER lowers reserve below calibrated value.
+    blended_win = reservation.window_need(
+        need, "c38", {"c38": {"five_hour": 0.003800625, "weekly": 0.02027}},
+        calibration_evidence={"c38": fresh_noisy}, now=fresh_now,
+    )
+    assert blended_win["windows"]["weekly"]["median"] >= (0.4 / 0.02027) - 1e-12
+
+    # Finding 2 guard: empty evidence or missing/unparseable timestamp expires (confidence=0.0) to conservative prior.
+    for bad_ev in ({}, {"basis": "provider_delta_lower_bound", "delta_after": {"observed_at": "not-a-date"}}):
+        bad_win = reservation.window_need(
+            need, "c38", {"c38": {"five_hour": 0.003800625, "weekly": 0.02027}},
+            calibration_evidence={"c38": bad_ev}, now=fresh_now,
+        )
+        assert bad_win["windows"]["weekly"] == reservation.UNCALIBRATED_WINDOW_NEED["weekly"]
+        assert bad_win["calibration_meta"]["weekly"]["confidence"] == 0.0
+        assert bad_win["calibration_meta"]["weekly"]["reason"] == "missing_timestamp"
+
+    # Windows explicitly carrying live capacity keep live rates even when delta evidence is missing/empty.
+    live_win = reservation.window_need(
+        need, "c38", {"c38": {"five_hour": 0.5, "weekly": 0.02027}},
+        calibration_evidence={"c38": {"live_capacity_windows": ["five_hour"]}}, now=fresh_now,
+    )
+    assert live_win["calibration_meta"]["five_hour"]["basis"] == "live_capacity"
+    assert live_win["windows"]["weekly"] == reservation.UNCALIBRATED_WINDOW_NEED["weekly"]
