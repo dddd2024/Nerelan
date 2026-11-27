@@ -29,6 +29,9 @@ class CommandResult:
 CommandRunner = Callable[[Sequence[str], str], CommandResult]
 
 
+_ROUND_LIMIT_HEADING = "\n\n### Open Review Findings (Round Limit Reached)"
+
+
 def _round_limit_findings_markdown(store: Any, control_store: Any, goal_id: str) -> str:
     """Format open review findings recorded at model_review_round_limit for Draft PR handoff."""
     lines: list[str] = []
@@ -49,7 +52,7 @@ def _round_limit_findings_markdown(store: Any, control_store: Any, goal_id: str)
         omitted = int(detail.get("omitted_open_findings") or 0)
         if not isinstance(findings, list) or (not findings and omitted <= 0):
             continue
-        lines.append("\n\n### Open Review Findings (Round Limit Reached)")
+        lines.append(_ROUND_LIMIT_HEADING)
         for item in findings:
             if isinstance(item, Mapping):
                 sev = str(item.get("severity") or "unknown").upper()
@@ -312,7 +315,6 @@ class PublicationController:
                 pr_number=int((pr or {}).get("number", 0)), pr_url=str((pr or {}).get("url", "")))
         body = "Retained functionally validated artifact. Independent review pending."
         findings_md = _round_limit_findings_markdown(self.store, self.control_store, goal_id)
-        body += findings_md
         from .goal_source_issue import source_issue
         from .quick_start import MAX_ISSUE_BODY_CHARS
         number = source_issue(goal)
@@ -335,6 +337,7 @@ class PublicationController:
             if r2 and not decisions:
                 raise TaskStoreError("r2_trusted_owner_decision_required")
             body += "\n" + "\n".join(decisions)
+        body += findings_md
         self._require_open_source(goal_id, fresh=True)
         save("PENDING")
         self._git(workspace, "push", "origin", artifact["commit"] + ":refs/heads/" + branch)
@@ -356,7 +359,10 @@ class PublicationController:
         if record is None or int(record.pr_number or 0) <= 0:
             return False
         goal = self.control_store.get_goal(goal_id)
-        workspace_meta = self.control_store.durable_workspace(task_id) or {}
+        try:
+            workspace_meta = self.control_store.durable_workspace(task_id) or {}
+        except TaskStoreError:
+            workspace_meta = {}
         raw_ws = str(workspace_meta.get("worktree_path") or "").strip()
         workspace = Path(raw_ws).resolve() if raw_ws else Path.cwd()
         if not workspace.is_dir():
@@ -370,8 +376,7 @@ class PublicationController:
         if not isinstance(view, Mapping) or not view.get("isDraft"):
             return False
         existing_body = str(view.get("body") or "")
-        marker = "\n\n## Review Round-Limit Handoff"
-        base_body = existing_body.split(marker, 1)[0].rstrip()
+        base_body = existing_body.split(_ROUND_LIMIT_HEADING, 1)[0].rstrip()
         updated_body = base_body + findings_md if base_body else findings_md.lstrip("\n")
         if updated_body == existing_body:
             return False

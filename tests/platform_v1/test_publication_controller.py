@@ -212,7 +212,7 @@ def test_sync_round_limit_body_updates_existing_draft_pr(review_setup):
     def runner(argv, cwd):
         if argv[:3] == ("gh", "pr", "create"):
             pr_state["body"] = argv[argv.index("--body") + 1]
-            return CommandResult(0)
+            return base_run(argv, cwd)
         if argv[:3] == ("gh", "pr", "view"):
             return CommandResult(0, json.dumps({"body": pr_state["body"], "isDraft": True}))
         if argv[:3] == ("gh", "pr", "edit"):
@@ -233,7 +233,8 @@ def test_sync_round_limit_body_updates_existing_draft_pr(review_setup):
         "UPDATE tasks SET status = 'BLOCKED', failure_classification = 'model_review_round_limit', "
         "failure_detail = ? WHERE id = ?",
         (json.dumps({
-            "open_findings": [{"severity": "high", "title": "Fix missing check", "file": "a.py"}],
+            "handoff_action": "open_draft_pr",
+            "open_findings": [{"severity": "high", "path": "a.py", "line": 10, "message": "Fix missing check"}],
             "omitted_open_findings": 2,
         }), review_task),
     )
@@ -242,8 +243,8 @@ def test_sync_round_limit_body_updates_existing_draft_pr(review_setup):
     assert publication.sync_round_limit_body(producer, goal_id=goal.id) is True
     assert len(edits) == 1
     assert "Retained functionally validated artifact" in pr_state["body"]
-    assert "## Review Round-Limit Handoff" in pr_state["body"]
-    assert "Fix missing check" in pr_state["body"]
+    assert "### Open Review Findings (Round Limit Reached)" in pr_state["body"]
+    assert "[HIGH] a.py:10: Fix missing check" in pr_state["body"]
     assert "(+2 additional open findings omitted)" in pr_state["body"]
     # Second call with identical findings is a no-op (idempotent).
     assert publication.sync_round_limit_body(producer, goal_id=goal.id) is False
