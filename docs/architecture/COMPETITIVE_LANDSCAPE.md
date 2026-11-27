@@ -22,6 +22,7 @@ Nerelan 要坚持的差异化：在授权范围内，综合任务能力、账户
 | Rulesync | `dyoshikawa/rulesync` | 中：统一生成各 Agent 的配置 | 小规模验证后复用 | 无 | 不能让它成为第二套治理真相；`AGENTS.md` 仍是权威 | 需要为多个执行器维护同一套非权威指令时 | 2026-11-08 |
 | Agent-Native | `BuilderIO/agent-native` | 中：Agent 与 UI 共用操作接口 | 借鉴 Action 设计 | 无 | 是应用框架，不是调度或治理层 | 前端操作需要同时暴露给 Agent 时 | 2026-11-08 |
 | OpenHands | `OpenHands/OpenHands` | 中：Agent 工作台 | 已复用前端框架 | 侧栏与工作台框架，见 `frontend/OPENHANDS_REUSE_MAP.md` | 只复用 UI，不复用其运行时 | 其前端组件大版本变化时 | 2026-11-08 |
+| PyRIT | `microsoft/PyRIT` | 中高：Agent 红队测试场景、提示注入样本、评分证据、A2A/MCP 目标适配与恢复统计 | 借鉴可追溯安全评估和正确统计口径，不引入整套攻击运行时 | [固定源码报告](reuse-study-2026-11-16/pyrit.md) / [#1670](https://github.com/dddd2024/Nerelan/issues/1670)；复用 Nerelan TaskStore、GoalService、现有独立验收 | 攻击 SUCCESS 可能表示防守失败；旧按每次尝试计算的成功率已弃用；目标 A2A 会话保存在内存中；红队模型与联网评测需授权、结算、隔离 | Provider-free 负面回归验证后，在受控真实 Agent×Model 测试中证明额外安全发现率与实际总成本收益时 | 2026-11-17 |
 | LangGraph | `langchain-ai/langgraph` | 低：图式工作流 | 已复用 | 团队图与开发图 | 已是依赖 | 大版本或检查点格式变化时 | 2026-11-08 |
 | OpenCode | `anomalyco/opencode` | 低：执行器 | 已复用 | 执行适配器 | 已是依赖 | 子进程管理或用量上报接口变化时（关联 #1336） | 2026-11-08 |
 | Sogen | `momo5502/sogen` | 低：二进制仿真与动态逆向 | 后续扩展候选 | 无 | 逆向不在默认产品范围 | 逆向扩展立项时 | 2026-11-08 |
