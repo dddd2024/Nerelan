@@ -220,8 +220,41 @@ def parse_quotas(payload: Any, now: datetime, max_age_seconds: float = 900) -> l
                 entry = dict(name=name, used_percent=used, remaining_percent=remaining,
                              resets_at=reset.isoformat() if reset else None,
                              unlimited=window.get("unlimited", False))
-                # Size and expiry of time-limited resources (#1471), kept only when Magpie
-                # states them; an unreadable value is dropped, never guessed.
+                # Size, expiry and promotional scope of time-limited resources (#1471, #1533),
+                # kept only when Magpie states them; malformed fields invalidate the window.
+                if "promotional" in window:
+                    if not isinstance(window["promotional"], bool):
+                        reason = "invalid_window"
+                        normalized = []
+                        break
+                    entry["promotional"] = window["promotional"]
+                for promo_key in ("freeUntil", "promoUntil"):
+                    if promo_key in window:
+                        promo_dt = _date(window[promo_key])
+                        if promo_dt is None:
+                            reason = "invalid_window"
+                            normalized = []
+                            break
+                        entry["free_until"] = promo_dt.isoformat()
+                if reason == "invalid_window":
+                    break
+                if "models" in window:
+                    raw_models = window["models"]
+                    if not isinstance(raw_models, list):
+                        reason = "invalid_window"
+                        normalized = []
+                        break
+                    parsed_models = []
+                    for item in raw_models:
+                        clean_model = _text(item, secrets) if isinstance(item, str) else None
+                        if not clean_model:
+                            reason = "invalid_window"
+                            normalized = []
+                            break
+                        parsed_models.append(clean_model)
+                    if reason == "invalid_window":
+                        break
+                    entry["models"] = parsed_models
                 if _number(window.get("limit")) is not None:
                     entry["limit"] = window["limit"]
                 runs_out_at = _date(window.get("runsOutAt"))

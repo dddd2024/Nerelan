@@ -1,10 +1,12 @@
-"""Provider-free tests for #1664 Magpie routing group sync planner."""
+"""Provider-free tests for #1664 / #1533 Magpie routing group sync planner."""
 from __future__ import annotations
 
-from reverse_agent.platform_v1.group_sync import plan_group_sync
+from pathlib import Path
+
+from reverse_agent.platform_v1.group_sync import _telemetry_by_member, plan_group_sync
 
 
-def test_group_sync_excludes_paid_subscriptions_and_unhealthy_accounts_and_orders_by_cache_hit() -> None:
+def test_group_sync_excludes_paid_subscriptions_and_unhealthy_accounts_and_ranks_composited() -> None:
     models_payload = {
         "object": "list",
         "data": [
@@ -45,12 +47,12 @@ def test_group_sync_excludes_paid_subscriptions_and_unhealthy_accounts_and_order
     result = plan_group_sync(models_payload, quotas_snapshot, usage_rows)
     groups = result["groups"]
     assert "group/nerelan-glm-5-3" in groups
-    # Ranked: highest cache hit first (raccoon -> workbuddy -> trae-cn -> unobserved opencode-zen-free)
+    # Composite rank: unmetered free + lower credit burn + high reliability/cache ahead of flaky/unknown cost
     assert groups["group/nerelan-glm-5-3"]["members"] == [
+        "opencode-zen-free/glm-5.3",
         "raccoon/glm-5.3",
         "workbuddy/glm-5.3",
         "trae-cn/glm-5.3",
-        "opencode-zen-free/glm-5.3",
     ]
     # Single-provider models are omitted when min_providers=2
     assert "group/nerelan-minimax-m2" not in groups
@@ -90,8 +92,8 @@ def test_group_sync_rejects_account_when_any_mandatory_window_is_exhausted() -> 
     }
     result = plan_group_sync(models_payload, quotas_snapshot)
     assert result["groups"]["group/nerelan-glm-5-3"]["members"] == [
-        "trae-cn/glm-5.3",
         "workbuddy/glm-5.3",
+        "trae-cn/glm-5.3",
     ]
     removed = {entry["member"]: entry["reason"] for entry in result["diff"]["removed_unhealthy"]}
     assert removed["raccoon/glm-5.3"] == "quota_exhausted"
@@ -124,9 +126,12 @@ def test_group_sync_preserves_default_paid_exclusions_under_partial_override() -
 
 
 def test_run_group_sync_wires_magpie_fetch_and_usage_cache(tmp_path: Path, monkeypatch) -> None:
+    from datetime import datetime, timezone
     import json
     from reverse_agent.model_access import http_safe
     from reverse_agent.platform_v1.group_sync import run_group_sync
+
+    now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
     cache_file = tmp_path / "magpie_usage_cache.jsonl"
     cache_file.write_text(
@@ -159,10 +164,92 @@ def test_run_group_sync_wires_magpie_fetch_and_usage_cache(tmp_path: Path, monke
         if url.endswith("/v1/models"):
             return _Resp({"data": [{"id": "workbuddy/glm-5.3"}, {"id": "trae-cn/glm-5.3"}, {"id": "codex/gpt-5.3"}]})
         if "/v1/magpie/quotas" in url:
-            return _Resp({"object": "list", "data": []})
+            return _Resp({
+                "object": "list",
+                "data": [
+                    {"provider": "workbuddy", "kind": "subscription", "readAt": now_iso, "windows": [{"name": "Credits", "used": 50, "remaining": 50}]},
+                    {"provider": "trae-cn", "kind": "subscription", "readAt": now_iso, "windows": [{"name": "Credits", "used": 60, "remaining": 40}]},
+                ],
+            })
         raise AssertionError(f"unexpected URL {url}")
 
     monkeypatch.setattr(http_safe, "urlopen", _fake_urlopen)
     plan = run_group_sync(magpie_url="http://127.0.0.1:3425", cache_path=cache_file)
     assert plan["groups"]["group/nerelan-glm-5-3"]["members"] == ["workbuddy/glm-5.3", "trae-cn/glm-5.3"]
     assert plan["diff"]["excluded_paid_subscription"] == ["codex/gpt-5.3"]
+
+
+def test_group_sync_rejects_missing_stale_or_empty_quota_and_unknown_credit_not_zero() -> None:
+    models = {
+        "data": [
+            {"id": "workbuddy/glm-5.3"},
+            {"id": "trae-cn/glm-5.3"},
+            {"id": "raccoon/glm-5.3"},
+            {"id": "opencode-zen-free/glm-5.3"},
+            {"id": "minimax-code/glm-5.3"},
+        ]
+    }
+    quotas = {
+        "accounts": [
+            {"provider": "workbuddy", "state": "FRESH", "windows": [{"name": "Credits", "remaining_percent": 60.0}]},
+            {"provider": "trae-cn", "state": "STALE", "windows": [{"name": "Credits", "remaining_percent": 90.0}]},
+            {"provider": "raccoon", "state": "FRESH", "windows": []},
+            # minimax-code omitted completely -> unknown_quota:no_quota_row
+        ]
+    }
+    res = plan_group_sync(models, quotas)
+    members = res["groups"]["group/nerelan-glm-5-3"]["members"]
+    assert set(members) == {"opencode-zen-free/glm-5.3", "workbuddy/glm-5.3"}
+    removed = {entry["member"]: entry["reason"] for entry in res["diff"]["removed_unhealthy"]}
+    assert removed["trae-cn/glm-5.3"] == "unknown_quota:stale"
+    assert removed["raccoon/glm-5.3"] == "unknown_quota:empty_windows"
+    assert removed["minimax-code/glm-5.3"] == "unknown_quota:no_quota_row"
+
+    # Missing telemetry / missing reported_credits must stay None, never 0.0.
+    telemetry = _telemetry_by_member([
+        {"served_model": "workbuddy/glm-5.3", "status": 200, "tokens": {"input": 100, "cache_read": 0}},
+        {"served_model": "trae-cn/glm-5.3", "status": 200, "tokens": {}},
+    ])
+    assert telemetry["workbuddy/glm-5.3"]["credits_per_1m"] is None
+    assert telemetry["trae-cn/glm-5.3"]["cache_hit_rate"] is None
+    assert telemetry["trae-cn/glm-5.3"]["credits_per_1m"] is None
+
+
+def test_group_sync_filters_meta_models_compliance_and_avoids_cache_only_ranking() -> None:
+    models = {
+        "data": [
+            {"id": "copilot/gpt-5.3"},
+            {"id": "custom-compliant/glm-5.3"},
+            {"id": "workbuddy/auto"},
+            {"id": "workbuddy/default"},
+            {"id": "trae-cn/max-model"},
+            {"id": "workbuddy/glm-5.3"},
+            {"id": "raccoon/glm-5.3"},
+        ]
+    }
+    quotas = {
+        "accounts": [
+            {"provider": "workbuddy", "state": "FRESH", "windows": [{"name": "Credits", "remaining_percent": 70.0}]},
+            {"provider": "raccoon", "state": "FRESH", "windows": [{"name": "Credits", "remaining_percent": 70.0}]},
+        ]
+    }
+    # raccoon has high cache hit (90%) BUT high failure rate (40%) + high credit burn; workbuddy is reliable & cheap.
+    usage = [
+        {"served_model": "raccoon/glm-5.3", "status": 200, "tokens": {"input": 100, "cache_read": 900}, "reported_credits": 50.0},
+        {"served_model": "raccoon/glm-5.3", "status": 500, "rejected": True, "tokens": {"input": 100, "cache_read": 900}, "reported_credits": 50.0},
+        {"served_model": "workbuddy/glm-5.3", "status": 200, "tokens": {"input": 400, "cache_read": 600, "output": 1000}, "reported_credits": 2.0},
+        {"served_model": "workbuddy/glm-5.3", "status": 200, "tokens": {"input": 400, "cache_read": 600, "output": 1000}, "reported_credits": 2.0},
+    ]
+    res = plan_group_sync(models, quotas, usage, compliance_excluded=["copilot", "custom-compliant"])
+    assert res["diff"]["excluded_compliance"] == ["copilot/gpt-5.3", "custom-compliant/glm-5.3"]
+    assert res["diff"]["excluded_meta_models"] == ["trae-cn/max-model", "workbuddy/auto", "workbuddy/default"]
+    assert res["groups"]["group/nerelan-glm-5-3"]["members"] == ["workbuddy/glm-5.3", "raccoon/glm-5.3"]
+    # credits_per_1m matches observed_credit_multipliers output-inclusive token denominator: 4 credits / 4000 tokens = 1000/1M
+    assert _telemetry_by_member(usage)["workbuddy/glm-5.3"]["credits_per_1m"] == 1000.0
+    # Without explicit compliance_excluded, copilot is not silently excluded by undocumented hardcode.
+    default_res = plan_group_sync(
+        {"data": [{"id": "copilot/glm-5.3"}, {"id": "workbuddy/glm-5.3"}]},
+        {"accounts": [{"provider": "copilot", "state": "FRESH", "windows": [{"name": "Credits", "remaining_percent": 50.0}]},
+                      {"provider": "workbuddy", "state": "FRESH", "windows": [{"name": "Credits", "remaining_percent": 50.0}]}]},
+    )
+    assert default_res["diff"]["excluded_compliance"] == []

@@ -342,27 +342,193 @@ def _owner_multiplier(owner: Mapping[str, Any] | None, section: str, key: Any) -
     return None
 
 
-def credit_multiplier_for(binding: Mapping[str, Any], owner: Mapping[str, Any] | None) -> float:
-    """Positive real credit multiplier for a binding/model from Owner overrides (default 1.0)."""
+def configured_credit_multiplier_for(binding: Mapping[str, Any], owner: Mapping[str, Any] | None) -> float | None:
+    """Explicit Owner-configured credit multiplier for a binding/model, or None if unconfigured."""
     binding = binding or {}
     model_id = binding.get("model_id") if isinstance(binding.get("model_id"), str) else ""
     found = _owner_multiplier(owner, "bindings", binding.get("binding_id"))
     if found is None:
         found = _owner_multiplier(owner, "models", model_id)
+    return found
+
+
+def credit_multiplier_for(binding: Mapping[str, Any], owner: Mapping[str, Any] | None) -> float:
+    """Positive real credit multiplier for a binding/model from Owner overrides (default 1.0)."""
+    found = configured_credit_multiplier_for(binding, owner)
     return found if found is not None else 1.0
 
 
-def effective_pool_limits(owner: Mapping[str, Any] | None) -> dict[str, dict[str, int]]:
-    """Merged default physical-pool concurrency limits plus any Owner ``pool_limits``."""
-    merged: dict[str, dict[str, int]] = {k: dict(v) for k, v in DEFAULT_POOL_LIMITS.items()}
+def observed_credit_multipliers(
+    usage_rows: Any,
+    *,
+    baseline_credits_per_1m: float | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Aggregate observed credit consumption per model from Magpie/runtime usage rows.
+
+    Uses ``served_model``/``asked_model`` namespace (never vendor ``provider``) and
+    derives per-namespace relative multipliers automatically when >= 2 models in the
+    same namespace report positive credits, unless an explicit baseline is supplied.
+    """
+    acc: dict[str, dict[str, float]] = {}
+    for row in usage_rows or ():
+        if not isinstance(row, Mapping):
+            continue
+        served = str(row.get("served_model") or row.get("served") or row.get("asked_model") or row.get("model") or "").strip().lower()
+        if "/" not in served:
+            continue
+        bucket = acc.setdefault(served, {"samples": 0.0, "credit_samples": 0.0, "tokens": 0.0, "credits": 0.0, "explicit_sum": 0.0, "explicit_n": 0.0})
+        bucket["samples"] += 1.0
+        tokens = row.get("tokens") if isinstance(row.get("tokens"), Mapping) else row
+        tok_total = 0.0
+        for field in ("input", "in", "cache_read", "cache_write", "output", "out"):
+            if field == "in" and "input" in tokens:
+                continue
+            if field == "out" and "output" in tokens:
+                continue
+            val = tokens.get(field)
+            if type(val) in (int, float) and math.isfinite(val) and val > 0:
+                tok_total += float(val)
+        cred = row.get("reported_credits")
+        if type(cred) in (int, float) and math.isfinite(cred) and cred >= 0:
+            bucket["credit_samples"] += 1.0
+            bucket["credits"] += float(cred)
+            bucket["tokens"] += tok_total
+        mult = row.get("credit_multiplier")
+        if type(mult) in (int, float) and math.isfinite(mult) and mult > 0:
+            bucket["explicit_sum"] += float(mult)
+            bucket["explicit_n"] += 1.0
+
+    cp1m_by_ns: dict[str, list[float]] = {}
+    interim: dict[str, dict[str, Any]] = {}
+    for key, s in acc.items():
+        cs = int(s["credit_samples"])
+        tok = s["tokens"]
+        credits_per_1m = round(s["credits"] * 1_000_000.0 / tok, 4) if cs > 0 and tok > 0 else None
+        if credits_per_1m is not None and credits_per_1m > 0:
+            ns = key.split("/", 1)[0]
+            cp1m_by_ns.setdefault(ns, []).append(credits_per_1m)
+        interim[key] = {"samples": int(s["samples"]), "credit_samples": cs, "credits_per_1m": credits_per_1m, "explicit_sum": s["explicit_sum"], "explicit_n": s["explicit_n"]}
+
+    out: dict[str, dict[str, Any]] = {}
+    for key, info in interim.items():
+        cp1m = info["credits_per_1m"]
+        mult: float | None = None
+        if info["explicit_n"] > 0:
+            mult = round(info["explicit_sum"] / info["explicit_n"], 4)
+        elif cp1m is not None:
+            if type(baseline_credits_per_1m) in (int, float) and baseline_credits_per_1m > 0:
+                mult = round(cp1m / float(baseline_credits_per_1m), 4)
+            else:
+                ns = key.split("/", 1)[0]
+                peers = cp1m_by_ns.get(ns, ())
+                if len(peers) >= 2:
+                    mult = round(cp1m / min(peers), 4)
+        out[key] = {
+            "samples": info["samples"],
+            "credit_samples": info["credit_samples"],
+            "credits_per_1m": cp1m,
+            "multiplier": mult,
+        }
+    return out
+
+
+def resolve_credit_multiplier(
+    binding: Mapping[str, Any],
+    owner: Mapping[str, Any] | None,
+    *,
+    observed_multipliers: Mapping[str, Mapping[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Resolve effective credit multiplier; explicit Owner config wins, telemetry surfaces discrepancy."""
+    binding = binding or {}
+    model_id = str(binding.get("model_id") or "").strip().lower()
+    configured = configured_credit_multiplier_for(binding, owner)
+    obs = (observed_multipliers or {}).get(model_id) or {}
+    raw_obs = obs.get("multiplier")
+    obs_mult = float(raw_obs) if (type(raw_obs) in (int, float) and math.isfinite(raw_obs) and raw_obs > 0) else None
+    obs_cp1m = obs.get("credits_per_1m")
+    samples = int(obs.get("credit_samples") or 0)
+    if configured is not None:
+        return {
+            "configured": configured,
+            "observed": obs_mult,
+            "effective": configured,
+            "source": "configured",
+            "discrepancy_ratio": round(obs_mult / configured, 4) if (obs_mult is not None and configured > 0) else None,
+            "samples": samples,
+            "credits_per_1m": obs_cp1m,
+        }
+    if obs_mult is not None and samples >= 1:
+        return {
+            "configured": None,
+            "observed": obs_mult,
+            "effective": obs_mult,
+            "source": "observed",
+            "discrepancy_ratio": None,
+            "samples": samples,
+            "credits_per_1m": obs_cp1m,
+        }
+    return {
+        "configured": None,
+        "observed": None,
+        "effective": None,
+        "source": "unknown",
+        "discrepancy_ratio": None,
+        "samples": samples,
+        "credits_per_1m": obs_cp1m,
+    }
+
+
+def effective_pool_limits(owner: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
+    """Merged default physical-pool concurrency, RPM/TPM and shared-pool limits plus Owner overrides."""
+    merged: dict[str, dict[str, Any]] = {k: dict(v) for k, v in DEFAULT_POOL_LIMITS.items()}
     raw = (owner or {}).get("pool_limits")
     if isinstance(raw, Mapping):
         for pool, entry in raw.items():
             if isinstance(pool, str) and pool.strip() and isinstance(entry, Mapping):
                 cap = entry.get("max_in_flight")
                 if type(cap) is int and cap > 0:
-                    merged[pool.strip().lower()] = {"max_in_flight": cap}
+                    cfg: dict[str, Any] = {"max_in_flight": cap}
+                    for rate_key in ("rpm_limit", "tpm_limit"):
+                        rate_val = entry.get(rate_key)
+                        if type(rate_val) is int and rate_val > 0:
+                            cfg[rate_key] = rate_val
+                    shared = entry.get("shared_account_pool")
+                    if isinstance(shared, str) and shared.strip():
+                        cfg["shared_account_pool"] = shared.strip().lower()
+                    merged[pool.strip().lower()] = cfg
     return merged
+
+
+def pool_key_for_upstream(upstream: str, pool_limits: Mapping[str, Mapping[str, Any]] | None) -> str:
+    """Resolve shared physical account pool key when multiple logical providers share one upstream pool."""
+    key = str(upstream or "").strip().lower()
+    if not key:
+        return ""
+    cfg = (pool_limits or {}).get(key)
+    if isinstance(cfg, Mapping):
+        shared = cfg.get("shared_account_pool")
+        if isinstance(shared, str) and shared.strip():
+            return shared.strip().lower()
+    return key
+
+
+def effective_pool_limit_for(
+    raw_key: str,
+    pool_limits: Mapping[str, Mapping[str, Any]] | None,
+) -> tuple[str, dict[str, Any]]:
+    """Return ``(counter_key, merged_caps)`` inheriting tighter limits from the shared pool entry."""
+    key = str(raw_key or "").strip().lower()
+    if not key or not pool_limits:
+        return key, {}
+    counter_key = pool_key_for_upstream(key, pool_limits)
+    raw_cfg = pool_limits.get(key) or {}
+    shared_cfg = pool_limits.get(counter_key) or {} if counter_key != key else {}
+    merged: dict[str, Any] = {}
+    for cap_key in ("max_in_flight", "rpm_limit", "tpm_limit"):
+        vals = [v for v in (raw_cfg.get(cap_key), shared_cfg.get(cap_key)) if type(v) is int and v > 0]
+        if vals:
+            merged[cap_key] = min(vals)
+    return counter_key, merged
 
 
 def binding_cost_class(binding: Mapping[str, Any], connection: Mapping[str, Any], owner: Mapping[str, Any]) -> str:
@@ -480,12 +646,19 @@ def read_overrides(state_path: Path | None) -> dict[str, Any]:
             if _cost_entry(value) is None:
                 raise ValueError("invalid_model_routing_overrides")
     pool_limits = data.get("pool_limits", {})
-    if not isinstance(pool_limits, dict) or any(
-        not isinstance(pool, str) or not pool.strip() or not isinstance(cfg, Mapping)
-        or type(cfg.get("max_in_flight")) is not int or cfg["max_in_flight"] <= 0
-        for pool, cfg in pool_limits.items()
-    ):
+    if not isinstance(pool_limits, dict):
         raise ValueError("invalid_model_routing_overrides")
+    for pool, cfg in pool_limits.items():
+        if (not isinstance(pool, str) or not pool.strip() or not isinstance(cfg, Mapping)
+                or type(cfg.get("max_in_flight")) is not int or cfg["max_in_flight"] <= 0):
+            raise ValueError("invalid_model_routing_overrides")
+        for rate_key in ("rpm_limit", "tpm_limit"):
+            if rate_key in cfg and (type(cfg[rate_key]) is not int or cfg[rate_key] <= 0):
+                raise ValueError("invalid_model_routing_overrides")
+        if "shared_account_pool" in cfg and (
+            not isinstance(cfg["shared_account_pool"], str) or not cfg["shared_account_pool"].strip()
+        ):
+            raise ValueError("invalid_model_routing_overrides")
     paid = data.get("paid_api_windows", [])
     if not isinstance(paid, list) or any(not isinstance(v, str) or not v for v in paid):
         raise ValueError("invalid_model_routing_overrides")
@@ -500,6 +673,9 @@ def read_overrides(state_path: Path | None) -> dict[str, Any]:
         data["group_errors"] = group_errors
         logging.getLogger(__name__).warning("model_routing_overrides.json: ignored %s", ", ".join(group_errors))
     if "paid_subscriptions" in data and not _valid_paid_subscriptions(data["paid_subscriptions"]):
+        raise ValueError("invalid_model_routing_overrides")
+    comp_excl = data.get("compliance_excluded_providers", [])
+    if not isinstance(comp_excl, list) or any(not isinstance(v, str) or not v.strip() for v in comp_excl):
         raise ValueError("invalid_model_routing_overrides")
     pace = data.get("weekly_pace", {})
     if (not isinstance(pace, dict) or set(pace) - set(DEFAULT_WEEKLY_PACE)
