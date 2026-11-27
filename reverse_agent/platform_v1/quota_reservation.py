@@ -347,13 +347,28 @@ def settlement(observations, estimate, *, usage_unknown):
             o.get("reasoning_units") is not None for o in extra) else None
     turns = len(observations) if observations and all(o.get("source_kind") in {"assistant_message", "step_finish"}
                  and o["status"] == "OBSERVED" for o in observations) else None
+    def _obs_total_tokens(o):
+        return sum(int(o.get(field) or 0) for field in fields.values())
+
+    def _obs_priced(o):
+        if o.get("status") != "OBSERVED" or o.get("cost_micro_units") is None:
+            return False
+        # Zero reported cost on non-zero token traffic is an unpriced proxy placeholder, not confirmed $0.
+        if o["cost_micro_units"] == 0 and _obs_total_tokens(o) > 0:
+            return False
+        return True
+
+    all_confirmed_zero = bool(observations) and all(
+        _obs_priced(o) and o["cost_micro_units"] == 0 and _obs_total_tokens(o) == 0
+        for o in observations
+    )
     cost = sum(o["cost_micro_units"] for o in observations) / 1_000_000 if observations and all(
-        o["status"] == "OBSERVED" and o.get("cost_micro_units") is not None for o in observations) else None
+        _obs_priced(o) for o in observations) else None
     actual = {name: cost / rate if cost is not None and _number(rate) and rate > 0 else None
               for name, rate in estimate.get("calibration", {}).items()}
     details = [{"id": o["id"], "observed_at": o.get("created_at"),
                 "windows": {name: o["cost_micro_units"] / 1_000_000 / rate
-                            if o.get("cost_micro_units") is not None and _number(rate) and rate > 0 else None
+                            if _obs_priced(o) and _number(rate) and rate > 0 else None
                             for name, rate in estimate.get("calibration", {}).items()}}
                for o in observations]
     # List-price equivalent of the measured tokens: the same units as the need
@@ -368,9 +383,15 @@ def settlement(observations, estimate, *, usage_unknown):
     # next task's need (#1323).
     if model and all(v is not None for v in priced.values()):
         price_units = pricing.equivalent_cost(model, priced).get("usd")
+    cost_basis = (
+        "confirmed_zero" if all_confirmed_zero
+        else "provider_reported_cost" if cost is not None and cost > 0
+        else "list_price_estimate" if cost is None and price_units is not None
+        else "unknown"
+    )
     return {"state": "UNKNOWN" if usage_unknown or not actual or any(v is None for v in actual.values()) else "ESTIMATED",
             "tokens": counters, "turn_count": turns, "cost_units": cost, "price_units": price_units,
-            "actual_windows": actual,
+            "cost_basis": cost_basis, "actual_windows": actual,
             "observation_ids": [o["id"] for o in observations], "actual_observations": details, "estimate": estimate}
 
 
