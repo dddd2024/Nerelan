@@ -87,3 +87,14 @@ class GoalSourceIssues:
                 for (repo, number), (expires_at, is_closed) in self._cache.items()
                 if is_closed and now < expires_at and (repository is None or repo == repository)
             }
+
+    def cached_closed_issue_refs(self, *, repository: str | None = None) -> set[tuple[str, int]]:
+        """Return unexpired ``(repository_lower, issue_number)`` pairs with zero network/subprocess calls."""
+        now = time.monotonic()
+        repo_filter = repository.strip().lower() if repository else None
+        with self._lock:
+            return {
+                (repo.strip().lower(), number)
+                for (repo, number), (expires_at, is_closed) in self._cache.items()
+                if is_closed and now < expires_at and (repo_filter is None or repo.strip().lower() == repo_filter)
+            }

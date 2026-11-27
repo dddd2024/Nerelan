@@ -314,3 +314,34 @@ def test_goal_source_issues_cached_closed_issues_is_read_only_and_ignores_expire
     assert tracker.cached_closed_issues() == {101}
     assert tracker.cached_closed_issues(repository="dddd2024/Nerelan") == {101}
     assert tracker.cached_closed_issues(repository="other/repo") == set()
+    assert tracker.cached_closed_issue_refs() == {("dddd2024/nerelan", 101)}
+    assert tracker.cached_closed_issue_refs(repository="DDDD2024/Nerelan") == {("dddd2024/nerelan", 101)}
+    assert tracker.cached_closed_issue_refs(repository="other/repo") == set()
+
+
+def test_closed_issue_refs_prevent_cross_repository_collision(tmp_path: Path) -> None:
+    db = tmp_path / "tasks.sqlite3"
+    conn = sqlite3.connect(db)
+    conn.executescript(
+        """
+        CREATE TABLE platform_autonomous_windows (id TEXT PRIMARY KEY, status TEXT);
+        CREATE TABLE platform_goals (id TEXT PRIMARY KEY, status TEXT, window_id TEXT, title TEXT, repository TEXT);
+        CREATE TABLE tasks (id TEXT PRIMARY KEY, status TEXT, created_at TEXT);
+        CREATE TABLE platform_goal_task_links (goal_id TEXT, task_id TEXT);
+        """
+    )
+    conn.execute("INSERT INTO platform_autonomous_windows VALUES ('w-act', 'ACTIVE')")
+    conn.executemany("INSERT INTO platform_goals VALUES (?, ?, ?, ?, ?)", [
+        ("g-repo-a", "RUNNING", "w-act", "#42 Closed upstream", "Org/Repo-A"),
+        ("g-repo-b", "RUNNING", "w-act", "#42 Still open in B", "org/repo-b"),
+    ])
+    conn.commit()
+    conn.close()
+
+    report_b_only = run_health_audit(db, now=NOW, closed_issue_refs=[("org/repo-a", 99)])
+    assert _by_id(report_b_only)["goal_hygiene"]["metric"]["closed_issue_active_goals"] == 0
+
+    report_a = run_health_audit(db, now=NOW, closed_issue_refs=[("org/repo-a", 42)])
+    inv = _by_id(report_a)["goal_hygiene"]
+    assert inv["status"] == "ALERT"
+    assert inv["metric"]["closed_issue_active_goals"] == 1

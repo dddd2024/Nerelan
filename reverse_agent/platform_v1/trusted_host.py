@@ -397,18 +397,26 @@ class CombinedTrustedHost:
                 except Exception:  # noqa: BLE001 - best-effort read-only Magpie usage refresh
                     pass
 
+            closed_refs: set[tuple[str, int]] | None = None
             closed_issues: set[int] | None = None
             source_issues = getattr(getattr(self, "_goal_service", None), "source_issues", None)
-            getter = getattr(source_issues, "cached_closed_issues", None)
-            if callable(getter):
-                cached = getter()
-                if cached:
-                    closed_issues = set(cached)
+            ref_getter = getattr(source_issues, "cached_closed_issue_refs", None)
+            if callable(ref_getter):
+                cached_refs = ref_getter()
+                if cached_refs:
+                    closed_refs = set(cached_refs)
+            else:
+                getter = getattr(source_issues, "cached_closed_issues", None)
+                if callable(getter):
+                    cached = getter()
+                    if cached:
+                        closed_issues = set(cached)
 
             return run_health_audit(
                 path,
                 magpie_cache_path=cache_path if cache_path.is_file() else None,
                 closed_issue_numbers=closed_issues,
+                closed_issue_refs=closed_refs,
             )
         except Exception:  # noqa: BLE001 - audit failure must never interrupt pool monitoring
             return None
