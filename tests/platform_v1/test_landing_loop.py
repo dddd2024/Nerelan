@@ -1340,3 +1340,36 @@ def test_republishes_uncommented_blocked_head_and_routed_adapter_fallback(tmp_pa
     with pytest.raises(TaskStoreError, match="landing_retained_workspace_required"):
         adapter.invoke_verdict({"goal_id": "missing-goal", "pr_number": 1, "repository": "dddd2024/Nerelan"}, "c1")
     store._conn.close()
+
+
+def test_waiting_landing_ticks_skip_redundant_policy_receipts_and_audit_denials_and_writes(tmp_path, monkeypatch):
+    store, window, state, github, loop, now = progress_loop(tmp_path, monkeypatch)
+    github.bad_check = "missing"
+
+    def policy_count(decision=None):
+        sql = "SELECT COUNT(*) FROM platform_operation_receipts WHERE operation_type='policy_evaluation' AND subject_id=?"
+        params = [state["goal_id"]]
+        if decision is not None:
+            sql += " AND decision=?"
+            params.append(decision)
+        return store._conn.execute(sql, tuple(params)).fetchone()[0]
+
+    for offset in range(5):
+        current = step(loop, state, window, now)
+        assert current["phase"] == "WAITING"
+        assert current["parking_reason"] == "fresh_current_head_checks_required"
+    assert policy_count("allowed") == 0
+
+    github.bad_check = ""
+    resumed = step(loop, state, window, now)
+    assert resumed["phase"] == "RECONCILING"
+    assert policy_count("allowed") >= 1
+
+    store.stop_window(window.id)
+    store._conn.execute(
+        "UPDATE platform_landing_state SET phase='WAITING', next_attempt_ms=0 WHERE identity=?",
+        (state["identity"],),
+    )
+    parked = step(loop, state, window, now)
+    assert parked["phase"] == "BLOCKED"
+    assert policy_count("denied") >= 1

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+import inspect
 import logging
 import math
 import os
@@ -223,7 +224,10 @@ class UnattendedCoordinator:
                 self.reconcile(fail_closed_on_durable=True)
             finally:
                 self._skip_sweep_thread = None
-            self._recovering = self.goal_escalator is not None
+            self._recovering = (
+                self.goal_escalator is not None
+                or callable(getattr(self.goals, "reconcile_closed_source_goals", None))
+            )
             self._stop.clear()
             thread = threading.Thread(
                 target=self._run, name="reverse-agent-unattended", daemon=True
@@ -289,8 +293,29 @@ class UnattendedCoordinator:
             self._last_error = f"orphaned_preparation_recovery_failed:{type(exc).__name__}"
         if self._skip_sweep_thread != threading.get_ident():
             stop_event = self._stop if threading.current_thread() is self._thread else None
+            reconciled.extend(
+                f"closed_source_goal:{goal_id}"
+                for goal_id in self._reconcile_closed_source_goals(stop_event=stop_event)
+            )
             self._sweep_escalations(stop_event=stop_event)
         return tuple(reconciled)
+
+    def _reconcile_closed_source_goals(
+        self, *, stop_event: threading.Event | None = None
+    ) -> list[str]:
+        reconcile_closed = getattr(self.goals, "reconcile_closed_source_goals", None)
+        if not callable(reconcile_closed) or (stop_event is not None and stop_event.is_set()):
+            return []
+        try:
+            params = inspect.signature(reconcile_closed).parameters
+            return list(
+                reconcile_closed(stop_event=stop_event)
+                if "stop_event" in params
+                else reconcile_closed()
+            )
+        except Exception as exc:  # noqa: BLE001 - must never break reconciliation
+            self._last_error = f"closed_source_reconcile_failed:{type(exc).__name__}"
+            return []
 
     def _next_sweep_delay(self, goal_id: str) -> float:
         """Seconds before re-examining an unchanged stuck goal (#1652)."""
@@ -616,14 +641,14 @@ class UnattendedCoordinator:
         retained_after_denial = None
         # A claimed task can still be QUEUED while its executor is running.
         # Scan past already-claimed rows instead of starving later candidates.
-        quota_held_auth = getattr(self, "_quota_held_authorized", None)
-        if quota_held_auth is None:
-            quota_held_auth = self._quota_held_authorized = {}
+        deferred_auth = getattr(self, "_deferred_task_auth", None)
+        if deferred_auth is None:
+            deferred_auth = self._deferred_task_auth = {}
         runnable_ids = self.control_store.runnable_tasks(
             window.id, limit=500, respect_attempt_limits=True, respect_reservation_limits=True
         )
-        for stale_id in set(quota_held_auth) - set(runnable_ids):
-            quota_held_auth.pop(stale_id, None)
+        for stale_id in set(deferred_auth) - set(runnable_ids):
+            deferred_auth.pop(stale_id, None)
         hold_recheck = self.__dict__.setdefault("_quota_hold_recheck_at", {})
         for stale_id in set(hold_recheck) - set(runnable_ids):
             hold_recheck.pop(stale_id, None)
@@ -680,13 +705,14 @@ class UnattendedCoordinator:
             if task.status in {"INTERRUPTED", "QUOTA_WAIT"} and operation != "validate_task":
                 operation = "resume_task"
             auth_key = (window.id, operation, task.status)
-            skip_initial_auth = quota_held_auth.get(task_id) == auth_key
-            if not skip_initial_auth and not self.autonomy.authorize(
+            skip_initial_auth = deferred_auth.get(task_id) == auth_key
+            if not self.autonomy.authorize(
                 window_id=window.id,
                 operation=operation,
                 repository=task.repository,
                 subject_id=task_id,
                 input_payload={"task_id": task_id, "status": task.status},
+                record_receipt=not skip_initial_auth,
             ):
                 continue
             if self._stop.is_set():
@@ -696,13 +722,13 @@ class UnattendedCoordinator:
                     raise TaskStoreError("QUOTA_WAIT:fresh_evidence_unavailable")
                 feedback_identity = self.quota_preparer(task) if self.quota_preparer is not None else None
                 if skip_initial_auth:
-                    quota_held_auth.pop(task_id, None)
                     if not self.autonomy.authorize(
                         window_id=window.id,
                         operation=operation,
                         repository=task.repository,
                         subject_id=task_id,
                         input_payload={"task_id": task_id, "status": task.status},
+                        record_receipt=True,
                     ):
                         continue
                 epoch, _ = self.control_store.claim_task(
@@ -714,8 +740,10 @@ class UnattendedCoordinator:
                 )
             except TaskStoreError as exc:
                 if str(exc) == "window_wip_limit_reached":
+                    deferred_auth[task_id] = auth_key
                     break
                 if str(exc) in {"window_token_budget_exhausted", "window_cost_budget_exhausted"}:
+                    deferred_auth[task_id] = auth_key
                     # Avoid preparing more unfunded work this tick. Later
                     # tasks can still use a reservation they already hold.
                     try:
@@ -726,13 +754,15 @@ class UnattendedCoordinator:
                         break  # Dispatch the batch already claimed before the read fault.
                     continue
                 if str(exc) in {"window_task_budget_exhausted", "window_retry_budget_exhausted"}:
+                    deferred_auth[task_id] = auth_key
                     # The other attempt class still has its own allowance.
                     continue
                 if str(exc) == "task_already_claimed":
+                    deferred_auth[task_id] = auth_key
                     continue
                 if str(exc).startswith("QUOTA_WAIT"):
                     held.append(task_id)
-                    quota_held_auth[task_id] = auth_key
+                    deferred_auth[task_id] = auth_key
                     now = time.time()
                     until = _quota_hold_until(str(exc), now)
                     if until is not None:
@@ -743,10 +773,10 @@ class UnattendedCoordinator:
                     if self._last_error.startswith("QUOTA_WAIT"):
                         self._last_error = ""
                     continue
-                quota_held_auth.pop(task_id, None)
+                deferred_auth[task_id] = auth_key
                 self._last_error = str(exc)
                 continue
-            quota_held_auth.pop(task_id, None)
+            deferred_auth.pop(task_id, None)
             claimed[task_id] = epoch
             if self._stop.is_set():
                 break
@@ -1292,6 +1322,7 @@ class UnattendedCoordinator:
         try:
             if self._recovering and not self._stop.is_set():
                 try:
+                    self._reconcile_closed_source_goals(stop_event=self._stop)
                     self._sweep_escalations(stop_event=self._stop)
                 finally:
                     with self._lifecycle_lock:

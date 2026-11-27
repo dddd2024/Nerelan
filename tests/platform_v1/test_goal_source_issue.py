@@ -165,3 +165,142 @@ def test_closed_source_does_not_starve_later_ready_goals(bed, monkeypatch, tmp_p
     coordinator._advance_landing(bed.window)
     assert passed == [open_id]
     assert bed.control.get_goal(closed.id).status == "SUPERSEDED"
+
+
+def test_reconcile_closed_source_goals_covers_planned_and_inactive_windows_while_protecting_merged_goals(bed, tmp_path):
+    def _plan_num(number):
+        url = f"https://github.com/{REPOSITORY}/issues/{number}"
+        objective = f"Resolve {url}\n\n# Billing refusal {number}"
+        dig = hashlib.sha256(objective.encode()).hexdigest()[:16]
+        goal = bed.goals.create({
+            "objective": objective, "repository": REPOSITORY, "executor_kind": "opencode",
+            "orchestration_mode": "agent_team",
+            "idempotency_key": f"quick-start:{REPOSITORY}:issue-{number}:{dig}:1",
+        })
+        bed.goals.plan(goal.id, expected_revision=1, tasks=[
+            {"id": "T001", "title": "Implement", "instruction": "Fix the issue", "agent_role": "coder"},
+        ])
+        return bed.goals.approve(goal.id, expected_revision=1)
+
+    from datetime import datetime, timedelta, timezone
+
+    planned = _plan_num(1525)  # PLANNED with empty window_id
+    inactive_running = _plan_num(1526)
+    bed.goals.launch(inactive_running.id, expected_revision=1, window_id=bed.window.id)
+    merged_goal = _plan_num(1527)
+    bed.goals.launch(merged_goal.id, expected_revision=1, window_id=bed.window.id)
+    bed.control.stop_window(bed.window.id)
+    now = datetime.now(timezone.utc)
+    owner_win = bed.autonomy.activate({
+        "policy_id": "owner-landing", "policy_revision": 1, "owner_identity": "owner@example",
+        "starts_at": (now - timedelta(seconds=5)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": [REPOSITORY], "capabilities": ["land_reviewed_pr"], "confirmation": "ACTIVATE",
+    })
+    landing = bed.control.ensure_landing(
+        repository=REPOSITORY, goal_id=merged_goal.id, pr_number=1999, head_sha="a" * 40, review_round=1,
+    )
+    claim_id = bed.control.claim_landing_operation(landing["identity"], "merge", window_id=owner_win.id)
+    bed.control.record_landing_outcome(landing["identity"], "merge", claim_id, outcome="SUCCEEDED", evidence={"merge_commit": "b" * 40})
+    bed.control.finish_landing_tick(landing["identity"], "COMPLETE", "", 0, lease=0)
+    [merged_link] = bed.control.list_goal_tasks(merged_goal.id)
+    _finish(bed.store, bed.store.get_task(merged_link["task_id"]), "READY_FOR_REVIEW", "")
+    bed.store._conn.commit()
+    bed.control.complete_merged_goal(merged_goal.id)
+    bed.control.stop_window(owner_win.id)
+
+    bed.goals.source_issues = GoalSourceIssues(lambda repo, num: {"number": num, "url": f"https://github.com/{repo}/issues/{num}", "state": "CLOSED"})
+    coordinator = UnattendedCoordinator(
+        store=bed.store, control_store=bed.control, autonomy=bed.autonomy,
+        router=ExecutorRouter(), workspace_root=str(tmp_path), goals=bed.goals,
+    )
+    summary = coordinator.reconcile()
+    assert f"closed_source_goal:{planned.id}" in summary
+    assert f"closed_source_goal:{inactive_running.id}" in summary
+    assert bed.control.get_goal(planned.id).status == "SUPERSEDED"
+    assert bed.control.get_goal(inactive_running.id).status == "SUPERSEDED"
+    assert len(bed.control.list_goal_tasks(inactive_running.id)) == 1
+    assert bed.control.get_goal(merged_goal.id).status == "COMPLETED"
+
+
+def test_reconcile_closed_source_goals_paginates_past_100_goals(bed):
+    import threading
+
+    def _plan_num(number):
+        url = f"https://github.com/{REPOSITORY}/issues/{number}"
+        objective = f"Resolve {url}\n\n# Billing refusal {number}"
+        dig = hashlib.sha256(objective.encode()).hexdigest()[:16]
+        goal = bed.goals.create({
+            "objective": objective, "repository": REPOSITORY, "executor_kind": "opencode",
+            "orchestration_mode": "agent_team",
+            "idempotency_key": f"quick-start:{REPOSITORY}:issue-{number}:{dig}:1",
+        })
+        bed.goals.plan(goal.id, expected_revision=1, tasks=[
+            {"id": "T001", "title": "Implement", "instruction": "Fix the issue", "agent_role": "coder"},
+        ])
+        return bed.goals.approve(goal.id, expected_revision=1)
+
+    goals = [_plan_num(2000 + i) for i in range(105)]
+    # Ensure distinct strictly increasing created_at timestamps so cursor pagination is deterministic.
+    for idx, goal in enumerate(goals):
+        bed.store._conn.execute(
+            "UPDATE platform_goals SET created_at = ? WHERE id = ?",
+            (f"2026-11-26T00:{idx // 60:02d}:{idx % 60:02d}Z", goal.id),
+        )
+    bed.store._conn.commit()
+    bed.goals.source_issues = GoalSourceIssues(
+        lambda repo, num: {"number": num, "url": f"https://github.com/{repo}/issues/{num}", "state": "CLOSED"}
+    )
+
+    first = bed.goals.reconcile_closed_source_goals(limit=100)
+    assert len(first) == 100
+    second = bed.goals.reconcile_closed_source_goals(limit=100)
+    assert len(second) == 5
+    assert set(first).isdisjoint(second)
+    assert len(set(first) | set(second)) == 105
+    assert all(bed.control.get_goal(g.id).status == "SUPERSEDED" for g in goals)
+    assert bed.goals.reconcile_closed_source_goals(limit=100) == []
+
+
+def test_reconcile_closed_source_goals_respects_stop_event(bed):
+    import threading
+
+    def _plan_num(number):
+        url = f"https://github.com/{REPOSITORY}/issues/{number}"
+        objective = f"Resolve {url}\n\n# Billing refusal {number}"
+        dig = hashlib.sha256(objective.encode()).hexdigest()[:16]
+        goal = bed.goals.create({
+            "objective": objective, "repository": REPOSITORY, "executor_kind": "opencode",
+            "orchestration_mode": "agent_team",
+            "idempotency_key": f"quick-start:{REPOSITORY}:issue-{number}:{dig}:1",
+        })
+        bed.goals.plan(goal.id, expected_revision=1, tasks=[
+            {"id": "T001", "title": "Implement", "instruction": "Fix the issue", "agent_role": "coder"},
+        ])
+        return bed.goals.approve(goal.id, expected_revision=1)
+
+    goals = [_plan_num(3000 + i) for i in range(4)]
+    for idx, goal in enumerate(goals):
+        bed.store._conn.execute(
+            "UPDATE platform_goals SET created_at = ? WHERE id = ?",
+            (f"2026-11-26T01:00:{idx:02d}Z", goal.id),
+        )
+    bed.store._conn.commit()
+
+    stop_event = threading.Event()
+    checked = []
+
+    def reader(repo, num):
+        checked.append(num)
+        if len(checked) >= 2:
+            stop_event.set()
+        return {"number": num, "url": f"https://github.com/{repo}/issues/{num}", "state": "CLOSED"}
+
+    bed.goals.source_issues = GoalSourceIssues(reader)
+    partial = bed.goals.reconcile_closed_source_goals(limit=100, stop_event=stop_event)
+    assert len(partial) == 2
+    assert len(checked) == 2
+    rest = bed.goals.reconcile_closed_source_goals(limit=100)
+    assert len(rest) == 2
+    assert set(partial).isdisjoint(rest)
+    assert all(bed.control.get_goal(g.id).status == "SUPERSEDED" for g in goals)
