@@ -22,6 +22,7 @@ Nerelan 要坚持的差异化：在授权范围内，综合任务能力、账户
 | Rulesync | `dyoshikawa/rulesync` | 中：统一生成各 Agent 的配置 | 小规模验证后复用 | 无 | 不能让它成为第二套治理真相；`AGENTS.md` 仍是权威 | 需要为多个执行器维护同一套非权威指令时 | 2026-11-08 |
 | Agent-Native | `BuilderIO/agent-native` | 中：Agent 与 UI 共用操作接口 | 借鉴 Action 设计 | 无 | 是应用框架，不是调度或治理层 | 前端操作需要同时暴露给 Agent 时 | 2026-11-08 |
 | OpenHands | `OpenHands/OpenHands` | 中：Agent 工作台 | 已复用前端框架 | 侧栏与工作台框架，见 `frontend/OPENHANDS_REUSE_MAP.md` | 只复用 UI，不复用其运行时 | 其前端组件大版本变化时 | 2026-11-08 |
+| MarkItDown | `microsoft/markitdown` | 中高：PDF/Office/HTML/ZIP 转 Markdown、优先级 Converter、插件扩展和 MCP 读取 | 借鉴按格式的受控解析和来源记录；只在隔离 Worker 评估窄范围 MIT 转换器复用 | [固定源码报告](reuse-study-2026-11-16/markitdown.md) / [#1679](https://github.com/dddd2024/Nerelan/issues/1679)；保留 ContextBuilder authority=NONE、Pack 元数据、TaskStore/Owner/MCP Owner | 默认权限继承调用进程；任意 file:/http: URI 无 Host 授权；流和 ZIP 整体内存处理缺少强制预算；Entry Point 插件导入执行代码；OCR/云处理可能另有费用与数据外发 | 先以受限本地文件和源哈希、分段出处测试确认安全及真实任务质量/总成本改善时 | 2026-11-17 |
 | LangGraph | `langchain-ai/langgraph` | 低：图式工作流 | 已复用 | 团队图与开发图 | 已是依赖 | 大版本或检查点格式变化时 | 2026-11-08 |
 | OpenCode | `anomalyco/opencode` | 低：执行器 | 已复用 | 执行适配器 | 已是依赖 | 子进程管理或用量上报接口变化时（关联 #1336） | 2026-11-08 |
 | Sogen | `momo5502/sogen` | 低：二进制仿真与动态逆向 | 后续扩展候选 | 无 | 逆向不在默认产品范围 | 逆向扩展立项时 | 2026-11-08 |
