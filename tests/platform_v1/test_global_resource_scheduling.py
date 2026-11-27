@@ -487,3 +487,18 @@ def test_shared_account_pool_rpm_tpm_observed_multipliers_and_promotional_free(t
         else:
             os.environ["REVERSE_AGENT_MAGPIE_EXE"] = old_exe
     raw_conn.close()
+
+
+def test_default_sensenova_pool_limit_enforces_rpm_limit_and_concurrency() -> None:
+    from reverse_agent.platform_v1.routing_inputs import DEFAULT_POOL_LIMITS
+
+    assert DEFAULT_POOL_LIMITS["token-sensenova"] == {"max_in_flight": 1, "rpm_limit": 10}
+    limits = effective_pool_limits({"pool_limits": {"custom-pool": {"max_in_flight": 3}}})
+    assert limits["token-sensenova"] == {"max_in_flight": 1, "rpm_limit": 10}
+    assert limits["custom-pool"] == {"max_in_flight": 3}
+
+    pool_sense = candidate("b-sense", "token-sensenova/glm-5.3", cost="free")
+    with pytest.raises(ModelSelectionError, match="no_runnable_model") as exc_info:
+        choose([pool_sense], difficulty=2, kind="code", rpm_by_pool={"token-sensenova": 10}, pool_limits=limits)
+    assert exc_info.value.decision["excluded_summary"] == {"pool_rpm_limit": 1}
+    assert exc_info.value.decision.get("temporary_resource_blocked") is True

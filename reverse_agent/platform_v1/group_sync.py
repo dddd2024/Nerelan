@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
+from datetime import datetime, timezone
 import json
 import math
 import os
@@ -24,6 +25,27 @@ _SAFE_SLUG = re.compile(r"[^a-z0-9._-]+")
 _IGNORED_NAMESPACES = frozenset({"group", "auto"})
 _META_MODEL_LEAVES = frozenset({"auto", "default", "max-model"})
 _DEFAULT_COMPLIANCE_EXCLUDED: frozenset[str] = frozenset()
+_UNKNOWN_QUOTA_REASONS = frozenset({
+    "stale_reading",
+    "read_deferred",
+    "missing_windows",
+    "no_read_time",
+    "invalid_timestamp",
+    "invalid_window",
+    "invalid_schema",
+    "duplicate_account",
+})
+_VERIFICATION_MAX_AGE_SECONDS = 86400.0
+
+
+def _parse_utc_timestamp(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed.astimezone(timezone.utc) if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
 def _is_unmetered_free_provider(provider: str) -> bool:
@@ -60,27 +82,50 @@ def _is_healthy_provider_accounts(
     accounts: Sequence[Mapping[str, Any]],
     *,
     provider: str = "",
-) -> tuple[bool, str, float | None]:
-    """Fail-closed provider health from /v1/magpie/quotas entries (missing != healthy)."""
+    verified_providers: set[str] | frozenset[str] = frozenset(),
+    provider_telemetry: Mapping[str, float] | None = None,
+) -> tuple[bool, str, float | None, str]:
+    """Fail-closed provider health separating unknown/unverified vs confirmed unavailable.
+
+    Returns ``(healthy, reason, headroom, classification)`` where classification is one of
+    ``"healthy"``, ``"unknown_unverified"``, or ``"confirmed_unavailable"``.
+    """
+    prov_key = str(provider or "").strip().lower()
+    unmetered_free = _is_unmetered_free_provider(prov_key)
+    tel = provider_telemetry or {}
+    tel_verified = float(tel.get("requests") or 0) >= 2 and float(tel.get("success_rate") or 0) >= 0.8
     if not accounts:
-        if _is_unmetered_free_provider(provider):
-            return True, "unmetered_free", None
-        return False, "unknown_quota:no_quota_row", None
+        if unmetered_free:
+            return True, "unmetered_free", None, "healthy"
+        return False, "unknown_quota:no_quota_row", None, "unknown_unverified"
     any_usable = False
     best_headroom: float | None = None
-    reasons: list[str] = []
+    confirmed_reasons: list[str] = []
+    unknown_reasons: list[str] = []
     for account in accounts:
-        err = account.get("error") or account.get("reason")
+        err = account.get("error")
+        reason_val = str(account.get("reason") or "").strip().lower()
         state = str(account.get("state") or account.get("status") or "").upper()
+        if unmetered_free and state == "UNKNOWN" and reason_val == "missing_windows" and not err:
+            if prov_key in verified_providers or tel_verified:
+                return True, "unmetered_free_verified", None, "healthy"
+            unknown_reasons.append("unknown_quota:missing_windows_unverified")
+            continue
         if err:
-            reasons.append(f"error:{err}")
+            confirmed_reasons.append(f"error:{err}")
+            continue
+        if reason_val in _UNKNOWN_QUOTA_REASONS:
+            unknown_reasons.append(f"unknown_quota:{reason_val}")
+            continue
+        if reason_val:
+            confirmed_reasons.append(f"error:{reason_val}")
             continue
         if state != "FRESH":
-            reasons.append(f"unknown_quota:{state.lower() or 'missing_state'}")
+            unknown_reasons.append(f"unknown_quota:{state.lower() or 'missing_state'}")
             continue
         windows = account.get("windows") or ()
-        if not windows and not _is_unmetered_free_provider(provider):
-            reasons.append("unknown_quota:empty_windows")
+        if not windows and not unmetered_free:
+            unknown_reasons.append("unknown_quota:empty_windows")
             continue
         exhausted_window = False
         numeric_windows = 0
@@ -106,21 +151,31 @@ def _is_healthy_provider_accounts(
                 exhausted_window = True
                 break
         if exhausted_window:
-            reasons.append("quota_exhausted")
+            confirmed_reasons.append("quota_exhausted")
             continue
-        if numeric_windows == 0 and not _is_unmetered_free_provider(provider):
-            reasons.append("unknown_quota:no_numeric_window")
+        if numeric_windows == 0 and not unmetered_free:
+            unknown_reasons.append("unknown_quota:no_numeric_window")
             continue
         any_usable = True
         if min_remaining is not None:
             best_headroom = min_remaining if best_headroom is None else max(best_headroom, min_remaining)
     if any_usable:
-        return True, "healthy", best_headroom
-    return False, reasons[0] if reasons else "unhealthy", None
+        return True, "healthy", best_headroom, "healthy"
+    if confirmed_reasons:
+        return False, confirmed_reasons[0], None, "confirmed_unavailable"
+    if unknown_reasons:
+        return False, unknown_reasons[0], None, "unknown_unverified"
+    return False, "unhealthy", None, "confirmed_unavailable"
 
 
-def _telemetry_by_member(usage_rows: Iterable[Mapping[str, Any]]) -> dict[str, dict[str, Any]]:
+def _telemetry_by_member(
+    usage_rows: Iterable[Mapping[str, Any]],
+    *,
+    now: datetime | None = None,
+    verification_max_age_seconds: float = _VERIFICATION_MAX_AGE_SECONDS,
+) -> dict[str, dict[str, Any]]:
     """Aggregate observed prompt-cache, success, and credit rate; missing stays None."""
+    ref_now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     acc: dict[str, dict[str, float]] = {}
     for row in usage_rows:
         if not isinstance(row, Mapping):
@@ -135,6 +190,8 @@ def _telemetry_by_member(usage_rows: Iterable[Mapping[str, Any]]) -> dict[str, d
         stats = acc.setdefault(key, {
             "requests": 0.0,
             "ok": 0.0,
+            "recent_requests": 0.0,
+            "recent_ok": 0.0,
             "input": 0.0,
             "cache_read": 0.0,
             "cache_write": 0.0,
@@ -147,6 +204,13 @@ def _telemetry_by_member(usage_rows: Iterable[Mapping[str, Any]]) -> dict[str, d
         failed = bool(row.get("rejected")) or (isinstance(status, (int, float)) and status >= 400)
         if not failed:
             stats["ok"] += 1.0
+        row_ts = _parse_utc_timestamp(row.get("time") or row.get("timestamp"))
+        if row_ts is not None:
+            age = (ref_now - row_ts).total_seconds()
+            if -300.0 <= age <= verification_max_age_seconds:
+                stats["recent_requests"] += 1.0
+                if not failed:
+                    stats["recent_ok"] += 1.0
         tokens = row.get("tokens") if isinstance(row.get("tokens"), Mapping) else row
         prompt_tok = 0.0
         for src_k, dst_k in (("input", "input"), ("cache_read", "cache_read"), ("cache_write", "cache_write")):
@@ -165,6 +229,7 @@ def _telemetry_by_member(usage_rows: Iterable[Mapping[str, Any]]) -> dict[str, d
     metrics: dict[str, dict[str, Any]] = {}
     for key, stats in acc.items():
         req = stats["requests"]
+        recent_req = stats["recent_requests"]
         denom = stats["input"] + stats["cache_read"] + stats["cache_write"]
         c_tok = stats["credit_tokens"]
         credits_per_1m = (
@@ -176,6 +241,8 @@ def _telemetry_by_member(usage_rows: Iterable[Mapping[str, Any]]) -> dict[str, d
             "requests": req,
             "cache_hit_rate": round(stats["cache_read"] / denom, 6) if denom > 0 else None,
             "success_rate": round(stats["ok"] / req, 6) if req > 0 else None,
+            "recent_requests": recent_req,
+            "recent_success_rate": round(stats["recent_ok"] / recent_req, 6) if recent_req > 0 else None,
             "credits_per_1m": credits_per_1m,
             "credit_samples": int(stats["credit_samples"]),
         }
@@ -189,8 +256,11 @@ def plan_group_sync(
     *,
     paid_subscriptions: Mapping[str, Any] | None = None,
     compliance_excluded: Iterable[str] | None = None,
+    verified_providers: Iterable[str] | None = None,
     existing_groups: Mapping[str, Any] | None = None,
     min_providers: int = 2,
+    now: datetime | None = None,
+    verification_max_age_seconds: float = _VERIFICATION_MAX_AGE_SECONDS,
 ) -> dict[str, Any]:
     """Compute desired ``group/<id>`` declarations & diff without touching external services."""
     raw_models = (
@@ -205,18 +275,37 @@ def plan_group_sync(
     )
     paid_providers = _paid_provider_names(paid_subscriptions)
     compliance_providers = _compliance_provider_names(compliance_excluded)
+    verified_iter = (
+        ()
+        if isinstance(verified_providers, (str, bytes)) or not isinstance(verified_providers, Iterable)
+        else verified_providers
+    )
+    verified_set = frozenset(str(p).strip().lower() for p in verified_iter if isinstance(p, str) and p.strip())
     by_provider_quotas: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
     for item in raw_quotas:
         if isinstance(item, Mapping) and isinstance(item.get("provider"), str) and item["provider"].strip():
             by_provider_quotas[item["provider"].strip().lower()].append(item)
 
-    provider_health: dict[str, tuple[bool, str, float | None]] = {}
-    telemetry = _telemetry_by_member(usage_rows)
+    provider_health: dict[str, tuple[bool, str, float | None, str]] = {}
+    telemetry = _telemetry_by_member(usage_rows, now=now, verification_max_age_seconds=verification_max_age_seconds)
+    provider_tel: dict[str, dict[str, float]] = {}
+    for member_id, stats in telemetry.items():
+        prov = member_id.split("/", 1)[0].lower()
+        pstats = provider_tel.setdefault(prov, {"requests": 0.0, "ok": 0.0})
+        req = float(stats.get("recent_requests") or 0.0)
+        sr = stats.get("recent_success_rate")
+        pstats["requests"] += req
+        if isinstance(sr, (int, float)):
+            pstats["ok"] += req * float(sr)
+    for prov, pstats in provider_tel.items():
+        pstats["success_rate"] = (pstats["ok"] / pstats["requests"]) if pstats["requests"] > 0 else 0.0
 
     grouped_candidates: dict[str, list[str]] = defaultdict(list)
     excluded_paid: list[str] = []
     excluded_compliance: list[str] = []
     excluded_meta: list[str] = []
+    excluded_unknown: list[dict[str, str]] = []
+    excluded_confirmed: list[dict[str, str]] = []
     excluded_unhealthy: list[dict[str, str]] = []
 
     seen_ids: set[str] = set()
@@ -247,10 +336,17 @@ def plan_group_sync(
             provider_health[provider] = _is_healthy_provider_accounts(
                 by_provider_quotas.get(provider, ()),
                 provider=provider,
+                verified_providers=verified_set,
+                provider_telemetry=provider_tel.get(provider),
             )
-        healthy, health_reason, _ = provider_health[provider]
+        healthy, health_reason, _, health_class = provider_health[provider]
         if not healthy:
-            excluded_unhealthy.append({"member": model_id, "reason": health_reason})
+            entry = {"member": model_id, "reason": health_reason}
+            excluded_unhealthy.append(entry)
+            if health_class == "unknown_unverified":
+                excluded_unknown.append(entry)
+            else:
+                excluded_confirmed.append(entry)
             continue
         if identity:
             grouped_candidates[identity].append(model_id)
@@ -266,7 +362,7 @@ def plan_group_sync(
         def sort_key(member_id: str) -> tuple[float, str]:
             t = telemetry.get(member_id.lower(), {})
             prov = member_id.split("/", 1)[0].lower()
-            _, _, headroom = provider_health.get(prov, (False, "", None))
+            _, _, headroom, _ = provider_health.get(prov, (False, "", None, ""))
             sr = t.get("success_rate")
             rel_penalty = (1.0 - float(sr)) * 2.5 if isinstance(sr, (int, float)) else 0.35
             cp1m = t.get("credits_per_1m")
@@ -301,6 +397,8 @@ def plan_group_sync(
             "excluded_paid_subscription": sorted(excluded_paid),
             "excluded_compliance": sorted(excluded_compliance),
             "excluded_meta_models": sorted(excluded_meta),
+            "unknown_unverified": excluded_unknown,
+            "confirmed_unavailable": excluded_confirmed,
             "removed_unhealthy": excluded_unhealthy,
         },
     }
@@ -340,6 +438,7 @@ def run_group_sync(
         usage_rows,
         paid_subscriptions=owner.get("paid_subscriptions"),
         compliance_excluded=owner.get("compliance_excluded_providers"),
+        verified_providers=owner.get("verified_providers"),
         existing_groups=owner.get("groups"),
     )
 

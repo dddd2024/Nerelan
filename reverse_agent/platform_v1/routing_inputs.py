@@ -43,19 +43,21 @@ GATEWAY_COST_CLASSES = {
 # Conservative physical-pool concurrency caps (#1533) preventing rate-limited free/credit
 # gateways from colliding into 429 bursts; Owner can override per-pool in `pool_limits`.
 DEFAULT_POOL_LIMITS: dict[str, dict[str, int]] = {
-    pool: {"max_in_flight": 1}
-    for pool in (
-        "opencode-zen-free",
-        "token-sensenova",
-        "sensenova",
-        "sensetime",
-        "agnes",
-        "trae-cn",
-        "workbuddy",
-        "workbuddy-ai",
-        "raccoon",
-        "minimax-code",
-    )
+    **{
+        pool: {"max_in_flight": 1}
+        for pool in (
+            "opencode-zen-free",
+            "sensenova",
+            "sensetime",
+            "agnes",
+            "trae-cn",
+            "workbuddy",
+            "workbuddy-ai",
+            "raccoon",
+            "minimax-code",
+        )
+    },
+    "token-sensenova": {"max_in_flight": 1, "rpm_limit": 10},
 }
 
 # Magpie routing ids (Owner decision 2026-11-17, "route by Magpie group, not account"):
