@@ -421,6 +421,11 @@ class CombinedTrustedHost:
         except Exception:  # noqa: BLE001 - audit failure must never interrupt pool monitoring
             return None
 
+    def _reconcile_task_usage(self, task: Any) -> dict[str, Any]:
+        """Reconcile missing/incomplete task usage against Magpie via positive identity (#1531)."""
+        from .real_settlement import reconcile_task_usage_from_magpie
+        return reconcile_task_usage_from_magpie(self._task_store, task, env=os.environ)
+
     def _build_pool_monitor(self) -> Any:
         from .multi_account import MultiAccountConfig
         from .multi_account.dispatch import get_orchestrator
@@ -2101,6 +2106,7 @@ class CombinedTrustedHost:
                 host_code_version=_host_source_head() if self._execution_authority_sha else "",
                 # Independent of REVERSE_AGENT_WORKSPACE_RECLAIM: works when reclaim is off.
                 disk_guard=configured_disk_guard(workspace_root),
+                usage_reconciler=self._reconcile_task_usage,
             )
             self._pool_monitor = self._build_pool_monitor()
             if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1":

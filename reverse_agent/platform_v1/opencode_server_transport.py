@@ -141,6 +141,7 @@ class ServerTransportResult:
     session_digest: str = ""
     usage_event_count: int = 0
     failure_reset_at: str = ""
+    session_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -739,6 +740,7 @@ class OpenCodeServerClient:
                             server_version=version,
                             session_digest=_safe_digest(session_id, "session-"),
                             usage_event_count=usage_count,
+                            session_id=session_id,
                         )
                     continue
                 bound_session = properties.get("sessionID")
@@ -753,6 +755,7 @@ class OpenCodeServerClient:
                             server_version=version,
                             session_digest=_safe_digest(session_id, "session-"),
                             usage_event_count=usage_count,
+                            session_id=session_id,
                         )
                     if _account_rate_limit_retry(status):
                         reset_at = _extract_rate_limit_reset_at((status.get("message", ""),))
@@ -765,6 +768,7 @@ class OpenCodeServerClient:
                             session_digest=_safe_digest(session_id, "session-"),
                             usage_event_count=usage_count,
                             failure_reset_at=reset_at,
+                            session_id=session_id,
                         )
                 if event_type == "session.idle" and bound_session == session_id:
                     return ServerTransportResult(
@@ -772,6 +776,7 @@ class OpenCodeServerClient:
                         server_version=version,
                         session_digest=_safe_digest(session_id, "session-"),
                         usage_event_count=usage_count,
+                        session_id=session_id,
                     )
                 if event_type == "session.error" and bound_session == session_id:
                     classification = (
@@ -793,6 +798,7 @@ class OpenCodeServerClient:
                         session_digest=_safe_digest(session_id, "session-"),
                         usage_event_count=usage_count,
                         failure_reset_at=reset_at,
+                        session_id=session_id,
                     )
         except OpenCodeServerTransportError as exc:
             if str(exc) != "server_event_timeout" or not session_id:
@@ -803,7 +809,7 @@ class OpenCodeServerClient:
                 success=False, failure_classification=classification,
                 abort_state="STREAM_ABORT_CONFIRMED" if confirmed else "STREAM_ABORT_UNKNOWN",
                 server_version=version, session_digest=_safe_digest(session_id, "session-"),
-                usage_event_count=usage_count)
+                usage_event_count=usage_count, session_id=session_id)
         finally:
             try:
                 stream.close()
