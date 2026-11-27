@@ -1002,3 +1002,28 @@ def test_cold_turn_split_and_calibration_aging_shrinkage_and_outlier_guard():
     eff_clean = reservation.effective_calibration({"five_hour": 0.001}, trimmed_ev, now=fresh_now)
     assert eff_clean["five_hour"]["rate"] == pytest.approx(0.05)
     assert eff_clean["five_hour"]["confidence"] == pytest.approx(1.0)
+
+    # Finding 1 guard: partial-confidence blend is monotonic and NEVER lowers reserve below calibrated value.
+    blended_win = reservation.window_need(
+        need, "c38", {"c38": {"five_hour": 0.003800625, "weekly": 0.02027}},
+        calibration_evidence={"c38": fresh_noisy}, now=fresh_now,
+    )
+    assert blended_win["windows"]["weekly"]["median"] >= (0.4 / 0.02027) - 1e-12
+
+    # Finding 2 guard: empty evidence or missing/unparseable timestamp expires (confidence=0.0) to conservative prior.
+    for bad_ev in ({}, {"basis": "provider_delta_lower_bound", "delta_after": {"observed_at": "not-a-date"}}):
+        bad_win = reservation.window_need(
+            need, "c38", {"c38": {"five_hour": 0.003800625, "weekly": 0.02027}},
+            calibration_evidence={"c38": bad_ev}, now=fresh_now,
+        )
+        assert bad_win["windows"]["weekly"] == reservation.UNCALIBRATED_WINDOW_NEED["weekly"]
+        assert bad_win["calibration_meta"]["weekly"]["confidence"] == 0.0
+        assert bad_win["calibration_meta"]["weekly"]["reason"] == "missing_timestamp"
+
+    # Windows explicitly carrying live capacity keep live rates even when delta evidence is missing/empty.
+    live_win = reservation.window_need(
+        need, "c38", {"c38": {"five_hour": 0.5, "weekly": 0.02027}},
+        calibration_evidence={"c38": {"live_capacity_windows": ["five_hour"]}}, now=fresh_now,
+    )
+    assert live_win["calibration_meta"]["five_hour"]["basis"] == "live_capacity"
+    assert live_win["windows"]["weekly"] == reservation.UNCALIBRATED_WINDOW_NEED["weekly"]

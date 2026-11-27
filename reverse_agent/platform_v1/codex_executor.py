@@ -481,6 +481,7 @@ class CodexExecutor:
             if self.KIND != "codex" or not self._model_id:
                 raise ExecutorRuntimeError("review_not_independent")
             actual_models = [self._model_id]
+        model_source = "transport_stream" if turn.models else "host_locked_cli_flag"
         identity = hashlib.sha256((prepared.execution_id + ":" + turn.thread_id).encode()).hexdigest()
         from .usage_ledger import _native
         counters = _native(turn.usage, self.KIND) if turn.usage else None
@@ -491,15 +492,18 @@ class CodexExecutor:
             "cache_write_units": counters["cache_write"],
             "reasoning_units": counters["reasoning"],
         }
+        single_model = len(actual_models) == 1
         _persist_usage_observations(store, task_id, [{
             "observation_id": "usage-review-" + hashlib.sha256((identity + model).encode()).hexdigest(),
             "execution_id": prepared.execution_id, "role": "reviewer",
             "model_id": model, "provider_id": self.PROVIDER_ID,
-            "source_kind": "assistant_message", "source_id": "review-turn-" + identity,
-            "status": "PARTIAL" if counters is not None else "UNKNOWN",
-            **usage_metrics,
+            "source_kind": "native_summary" if counters is not None and single_model else "assistant_message",
+            "source_id": "review-turn-" + identity,
+            "status": "PARTIAL" if counters is not None and single_model else "UNKNOWN",
+            **(usage_metrics if single_model else {}),
         } for model in actual_models])
         return {"response": turn.final_text, "actual_models": actual_models,
+                "model_source": model_source,
                 "request_id": turn.thread_id, "execution_id": prepared.execution_id,
                 "binding_ref": self._binding_resolution.binding_ref,
                 "quota_observations": turn.rate_limits}

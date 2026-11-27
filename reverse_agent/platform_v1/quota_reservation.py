@@ -201,26 +201,42 @@ def effective_calibration(
     """Compute aged, outlier-filtered, confidence-weighted calibration rates."""
     now_ts = time.time() if now is None else float(now)
     normalized = {canonical_window(k): float(v) for k, v in rates.items() if _number(v) and v > 0}
-    if not evidence:
-        return {
-            window: {"rate": rate, "confidence": 1.0, "basis": "unscoped", "age_days": 0.0, "samples": 1}
-            for window, rate in normalized.items()
-        }
+    ev = evidence if isinstance(evidence, Mapping) else {}
+    live_windows = {
+        canonical_window(w) for w in (ev.get("live_capacity_windows") or ())
+        if isinstance(w, str) and w.strip()
+    }
+    if not ev:
+        empty_res: dict[str, dict[str, Any]] = {}
+        for window in normalized:
+            if window in live_windows:
+                empty_res[window] = {
+                    "rate": normalized[window], "confidence": 1.0, "basis": "live_capacity",
+                    "age_days": 0.0, "samples": 1, "reason": "ok",
+                }
+            else:
+                empty_res[window] = {
+                    "rate": None, "confidence": 0.0, "basis": "unverified",
+                    "age_days": None, "samples": 1, "reason": "missing_timestamp",
+                }
+        return empty_res
 
-    basis = str(evidence.get("basis") or "")
+    basis = str(ev.get("basis") or "")
     is_delta = basis == "provider_delta_lower_bound"
-    raw_samples = evidence.get("delta_samples") if isinstance(evidence.get("delta_samples"), Mapping) else {}
+    raw_samples = ev.get("delta_samples") if isinstance(ev.get("delta_samples"), Mapping) else {}
     observed_at = None
-    if is_delta and isinstance(evidence.get("delta_after"), Mapping):
-        observed_at = quota_forecast.parse_time(evidence["delta_after"].get("observed_at"))
-    elif isinstance(evidence.get("after"), Mapping):
-        observed_at = quota_forecast.parse_time(evidence["after"].get("observed_at"))
+    if is_delta and isinstance(ev.get("delta_after"), Mapping):
+        observed_at = quota_forecast.parse_time(ev["delta_after"].get("observed_at"))
+    elif isinstance(ev.get("after"), Mapping):
+        observed_at = quota_forecast.parse_time(ev["after"].get("observed_at"))
 
     max_age = CALIBRATION_MAX_AGE_DAYS if is_delta else ATTRIBUTABLE_MAX_AGE_DAYS
-    age_days = max(0.0, (now_ts - observed_at) / 86400.0) if observed_at is not None else 0.0
-    if observed_at is not None and age_days > max_age:
+    age_days = max(0.0, (now_ts - observed_at) / 86400.0) if observed_at is not None else None
+    if observed_at is None or age_days is None:
         age_weight = 0.0
-    elif is_delta and observed_at is not None:
+    elif age_days > max_age:
+        age_weight = 0.0
+    elif is_delta:
         age_weight = 0.5 ** (age_days / CALIBRATION_HALF_LIFE_DAYS)
     else:
         age_weight = 1.0
@@ -240,16 +256,18 @@ def effective_calibration(
             robust[window] = (rate, 1)
 
     result: dict[str, dict[str, Any]] = {}
-    live_windows = {
-        canonical_window(w) for w in (evidence.get("live_capacity_windows") or ())
-        if isinstance(w, str) and w.strip()
-    }
     weekly_rate = robust.get("weekly", (None, 0))[0]
     for window, (rate, sample_count) in robust.items():
         if window in live_windows and window in normalized:
             result[window] = {
                 "rate": normalized[window], "confidence": 1.0, "basis": "live_capacity",
                 "age_days": 0.0, "samples": 1, "reason": "ok",
+            }
+            continue
+        if observed_at is None or age_days is None:
+            result[window] = {
+                "rate": None, "confidence": 0.0, "basis": basis or "unverified",
+                "age_days": None, "samples": sample_count, "reason": "missing_timestamp",
             }
             continue
         if age_weight <= 0.0:
@@ -296,7 +314,7 @@ def window_need(need: Mapping[str, Any], account_ref: str,
                 calibrated = {q: units / rate if _number(units) else None for q, units in need["units"].items()}
                 if conf < 1.0:
                     windows[window] = {
-                        q: (conf * calibrated[q] + (1.0 - conf) * prior_w[q])
+                        q: max(calibrated[q], conf * calibrated[q] + (1.0 - conf) * prior_w[q])
                         if _number(calibrated.get(q)) and _number(prior_w.get(q))
                         else calibrated.get(q)
                         for q in prior_w
