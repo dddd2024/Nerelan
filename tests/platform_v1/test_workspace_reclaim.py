@@ -941,3 +941,56 @@ def test_a_same_size_edit_with_the_indexed_timestamp_is_not_missed(repo, root, t
     os.utime(workspace_reclaim._gitdir(wt) / "index", ns=(when, when))
     entry = _preserve_sweep(root, tmp_path)
     assert git(repo, "show", f"{entry['preserved_ref']}:a.txt") == "BBBB"
+
+
+def test_reclaim_releases_superseded_failed_escalations_but_keeps_active_or_review_ancestors(repo, root, tmp_path):
+    wt_old_fail = add_worktree(repo, root, "t-old-fail")
+    wt_new_running = add_worktree(repo, root, "t-old-wait")
+    wt_review_esc = add_worktree(repo, root, "t-rev-rej")
+    wt_pub_esc = add_worktree(repo, root, "t-pub")
+    db = tmp_path / "tasks.sqlite3"
+    conn = sqlite3.connect(db)
+    conn.executescript(
+        """
+        CREATE TABLE tasks (id TEXT PRIMARY KEY, status TEXT, updated_at TEXT, worktree_path TEXT, failure_classification TEXT);
+        CREATE TABLE platform_goals (id TEXT PRIMARY KEY, status TEXT, window_id TEXT);
+        CREATE TABLE platform_autonomous_windows (id TEXT PRIMARY KEY, status TEXT);
+        CREATE TABLE platform_landing_state (goal_id TEXT, phase TEXT);
+        CREATE TABLE platform_goal_task_links (goal_id TEXT, task_id TEXT);
+        CREATE TABLE platform_task_escalations (goal_id TEXT, from_task_id TEXT, to_task_id TEXT);
+        CREATE TABLE platform_publications (task_id TEXT);
+        """
+    )
+    old_ts = "2026-01-01T00:00:00Z"
+    conn.executemany(
+        "INSERT INTO tasks VALUES (?, ?, ?, ?, ?)",
+        [
+            ("t-old-fail", "FAILED", old_ts, str(wt_old_fail), "functional_check_failed"),
+            ("t-repl-done", "FAILED", old_ts, "", "functional_check_failed"),
+            ("t-old-wait", "FAILED", old_ts, str(wt_new_running), "functional_check_failed"),
+            ("t-repl-run", "RUNNING", old_ts, str(wt_new_running), ""),
+            ("t-rev-rej", "FAILED", old_ts, str(wt_review_esc), "model_review_rejected"),
+            ("t-pub", "FAILED", old_ts, str(wt_pub_esc), "functional_check_failed"),
+        ],
+    )
+    conn.execute("INSERT INTO platform_autonomous_windows VALUES ('w-1', 'ACTIVE')")
+    conn.execute("INSERT INTO platform_goals VALUES ('g-1', 'EXECUTING', 'w-1')")
+    conn.executemany(
+        "INSERT INTO platform_task_escalations VALUES (?, ?, ?)",
+        [
+            ("g-1", "t-old-fail", "t-repl-done"),
+            ("g-1", "t-old-wait", "t-repl-run"),
+            ("g-1", "t-rev-rej", "t-repl-done"),
+            ("g-1", "t-pub", "t-repl-done"),
+        ],
+    )
+    conn.execute("INSERT INTO platform_publications VALUES ('t-pub')")
+    conn.commit()
+    conn.close()
+
+    report = sweep([root], task_db=db, now=LATER, apply=False)
+    entries = by_name(report)
+    assert entries["t-old-fail"]["reclaim"] is True
+    assert entries["t-old-wait"]["reclaim"] is False and entries["t-old-wait"]["reason"] == "an open goal may still need it"
+    assert entries["t-rev-rej"]["reclaim"] is False and entries["t-rev-rej"]["reason"] == "an open goal may still need it"
+    assert entries["t-pub"]["reclaim"] is False and entries["t-pub"]["reason"] == "an open goal may still need it"

@@ -748,6 +748,7 @@ def test_binding_config_contains_only_provider_base_url_metadata() -> None:
     content = build_binding_config_content(_binding_resolution())
 
     assert json.loads(content) == {
+        "compaction": {"auto": True, "prune": True},
         "provider": {
             "openai-compatible": {
                 "name": "Reverse Agent Relay",
@@ -1299,6 +1300,7 @@ def test_binding_execution_passes_only_secret_free_env_and_sanitized_metadata(au
         assert isinstance(child_env, dict)
         config = json.loads(child_env["OPENCODE_CONFIG_CONTENT"])
         assert config == {
+            "compaction": {"auto": True, "prune": True},
             "provider": {
                 "openai-compatible": {
                     "name": "Reverse Agent Relay",
@@ -3798,3 +3800,8 @@ def test_normalize_usage_metrics_separates_confirmed_zero_from_unpriced():
     priced = _normalize_usage_metrics(tokens_nz, 0.123456)
     assert priced["status"] == "OBSERVED"
     assert priced["cost_micro_units"] == 123456
+
+
+def test_binding_config_enables_compaction_auto_and_prune() -> None:
+    cfg = json.loads(build_binding_config_content(_binding_resolution()))
+    assert cfg["compaction"] == {"auto": True, "prune": True}

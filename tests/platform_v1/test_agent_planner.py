@@ -587,3 +587,31 @@ def test_repository_preparation_run_git_closes_stdin_with_devnull(tmp_path, monk
     res = rp._run_git(["git", "status"], cwd=tmp_path, timeout=10)
     assert res.stdout == "ok\n"
     assert seen["kwargs"]["stdin"] is subprocess.DEVNULL
+
+
+def test_deterministic_fast_path_plans_scoped_r1_without_runner_and_reports_confirmed_zero(tmp_path):
+    from reverse_agent.platform_v1.agent_planner import build_fast_path_plan
+
+    goals, goal = _goals()
+    planner, calls = _planner(tmp_path, goals, lambda **_: pytest.fail("fast path must not invoke LLM runner"))
+    spec = {
+        "difficulty": 2,
+        "allowed_paths": ["reverse_agent/platform_v1/foo.py", "tests/platform_v1/test_foo.py"],
+        "validation_checks": [{"profile_id": "python_pytest", "working_directory": "."}],
+    }
+    direct = build_fast_path_plan(goal, fast_path_spec=spec)
+    assert direct is not None and direct["plan_source"] == "fast_path_deterministic"
+    assert [t["id"] for t in direct["tasks"]] == ["T001", "T002"]
+    assert direct["tasks"][1]["kind"] == "review" and direct["tasks"][1]["dependencies"] == ["T001"]
+
+    status = planner.start(goal.id, expected_revision=1, background=False, fast_path_spec=spec)
+    assert status["status"] == "PLANNED"
+    assert status["planner"] == {"executor_kind": "host_fast_path", "binding_ref": "deterministic"}
+    assert status["usage_status"] == "confirmed_zero"
+    assert status["token_usage"] == {"input_tokens": 0, "output_tokens": 0}
+    assert not calls
+
+    # Ineligible (R2 path or high difficulty) falls back cleanly to None / normal planner runner.
+    r2_spec = {**spec, "allowed_paths": ["AGENTS.md"]}
+    assert build_fast_path_plan(goal, fast_path_spec=r2_spec) is None
+    assert build_fast_path_plan(goal, fast_path_spec={**spec, "difficulty": 4}) is None

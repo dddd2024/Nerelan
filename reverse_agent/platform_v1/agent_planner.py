@@ -353,12 +353,13 @@ class PlanJob:
     usage: dict[str, int] | None = None
     raw_excerpt: str = ""
     transient: bool = False
+    usage_status: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         data = {"goal_id": self.goal_id, "status": self.status, "error": self.error,
                 "started_at": self.started_at, "finished_at": self.finished_at, "planner": dict(self.planner),
                 # A planner run is a model call: unknown usage is reported as unknown, never as zero.
-                "usage_status": "observed_tokens" if self.usage is not None else "unknown",
+                "usage_status": self.usage_status or ("observed_tokens" if self.usage is not None else "unknown"),
                 "token_usage": dict(self.usage) if self.usage is not None else None}
         # Only a failed parse keeps the raw excerpt, so the cause can be diagnosed.
         if self.status == "FAILED" and self.raw_excerpt:
@@ -454,7 +455,8 @@ class AgentPlanner:
             return job.to_dict() if job else {"goal_id": goal_id, "status": "NONE", "error": ""}
 
     def start(self, goal_id: str, *, expected_revision: int, background: bool = True,
-              base_commit: str | None = None) -> dict[str, Any]:
+              base_commit: str | None = None,
+              fast_path_spec: Mapping[str, Any] | None = None) -> dict[str, Any]:
         goal = self._goals.control_store.get_goal(goal_id)
         if goal.revision != expected_revision:
             raise TaskStoreError("goal_revision_mismatch")
@@ -462,6 +464,30 @@ class AgentPlanner:
             raise TaskStoreError("goal_not_plannable")
         if goal.orchestration_mode != "agent_team":
             raise TaskStoreError("agent_planner_requires_agent_team_goal")
+        fast_plan = build_fast_path_plan(goal, fast_path_spec=fast_path_spec)
+        if fast_plan is not None:
+            with self._lock:
+                current = self._jobs.get(goal_id)
+                if current is not None and current.status == "RUNNING":
+                    return current.to_dict()
+                now = time.time()
+                self._goals.plan(
+                    goal.id,
+                    expected_revision=goal.revision,
+                    tasks=fast_plan["tasks"],
+                    acceptance_criteria=fast_plan["acceptance_criteria"],
+                )
+                job = PlanJob(
+                    goal_id,
+                    status="PLANNED",
+                    started_at=now,
+                    finished_at=now,
+                    planner={"executor_kind": "host_fast_path", "binding_ref": "deterministic"},
+                    usage={"input_tokens": 0, "output_tokens": 0},
+                    usage_status="confirmed_zero",
+                )
+                self._jobs[goal_id] = job
+            return self.status(goal_id)
         executor_kind, binding_ref = self._roster("planner")
         if executor_kind not in {"claude_code", "codex", "opencode"}:
             raise TaskStoreError("agent_planner_requires_native_executor")
@@ -541,6 +567,64 @@ class AgentPlanner:
                         goal.id, binding_ref, error, transient)
         with self._lock:
             job.status, job.error, job.finished_at, job.transient = outcome, error, time.time(), transient
+
+
+def build_fast_path_plan(
+    goal: Any,
+    *,
+    fast_path_spec: Mapping[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Build a deterministic 2-task implement + review plan for scoped R1 goals (#1267)."""
+    if not isinstance(fast_path_spec, Mapping):
+        return None
+    raw_paths = fast_path_spec.get("allowed_paths")
+    raw_checks = fast_path_spec.get("validation_checks")
+    raw_diff = fast_path_spec.get("difficulty")
+    if not isinstance(raw_paths, (list, tuple)) or not isinstance(raw_checks, (list, tuple)) or not raw_checks:
+        return None
+    from .orchestration_selector import fast_path_eligible
+    eligibility = fast_path_eligible(
+        {"difficulty": raw_diff},
+        changed_paths=raw_paths,
+        difficulty=raw_diff if type(raw_diff) is int else None,
+    )
+    if not eligibility["eligible"]:
+        return None
+    paths = [str(p).strip().replace("\\", "/").lstrip("./") for p in raw_paths if isinstance(p, str) and p.strip()]
+    checks = [dict(item) for item in raw_checks if isinstance(item, Mapping)]
+    if not checks or not paths:
+        return None
+    title = str(getattr(goal, "title", "") or fast_path_spec.get("title") or "Scoped R1 task").strip()[:160]
+    objective = str(getattr(goal, "objective", "") or title).strip()
+    kind = str(fast_path_spec.get("kind") or "code")
+    criteria = [str(c) for c in (fast_path_spec.get("acceptance_criteria") or (f"{title} passes host functional checks and independent review",))]
+    return {
+        "plan_source": "fast_path_deterministic",
+        "fast_path": eligibility,
+        "tasks": [
+            {
+                "id": "T001",
+                "title": f"Implement {title}",
+                "instruction": f"{objective}\n\nScoped allowed_paths: {', '.join(paths)}",
+                "difficulty": int(raw_diff),
+                "kind": kind,
+                "dependencies": [],
+                "allowed_paths": paths,
+                "validation_checks": checks,
+            },
+            {
+                "id": "T002",
+                "title": f"Review {title}",
+                "instruction": "Perform independent review of T001 against the repository diff and host functional check evidence.",
+                "difficulty": min(3, max(1, int(raw_diff))),
+                "kind": "review",
+                "dependencies": ["T001"],
+                "artifact_input": {"plan_task_id": "T001"},
+                "validation_checks": checks,
+            },
+        ],
+        "acceptance_criteria": criteria,
+    }
 
 
 def planner_status_payload(planner: AgentPlanner | None, goal_id: str) -> Mapping[str, Any]:
