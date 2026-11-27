@@ -23,7 +23,7 @@ from .routing_inputs import DEFAULT_PAID_SUBSCRIPTIONS, GATEWAY_COST_CLASSES, re
 _SAFE_SLUG = re.compile(r"[^a-z0-9._-]+")
 _IGNORED_NAMESPACES = frozenset({"group", "auto"})
 _META_MODEL_LEAVES = frozenset({"auto", "default", "max-model"})
-_DEFAULT_COMPLIANCE_EXCLUDED = frozenset({"copilot"})
+_DEFAULT_COMPLIANCE_EXCLUDED: frozenset[str] = frozenset()
 
 
 def _is_unmetered_free_provider(provider: str) -> bool:
@@ -125,11 +125,13 @@ def _telemetry_by_member(usage_rows: Iterable[Mapping[str, Any]]) -> dict[str, d
     for row in usage_rows:
         if not isinstance(row, Mapping):
             continue
-        served = str(row.get("served_model") or row.get("served") or row.get("model") or "").strip().lower()
-        prov = str(row.get("provider") or "").strip().lower()
-        key = served if "/" in served else (f"{prov}/{served}" if prov and served else served)
-        if not key:
+        served = str(
+            row.get("served_model") or row.get("served")
+            or row.get("asked_model") or row.get("model") or ""
+        ).strip().lower()
+        if "/" not in served:
             continue
+        key = served
         stats = acc.setdefault(key, {
             "requests": 0.0,
             "ok": 0.0,
@@ -146,17 +148,19 @@ def _telemetry_by_member(usage_rows: Iterable[Mapping[str, Any]]) -> dict[str, d
         if not failed:
             stats["ok"] += 1.0
         tokens = row.get("tokens") if isinstance(row.get("tokens"), Mapping) else row
-        row_tok = 0.0
+        prompt_tok = 0.0
         for src_k, dst_k in (("input", "input"), ("cache_read", "cache_read"), ("cache_write", "cache_write")):
             val = tokens.get(src_k, row.get("in" if src_k == "input" else src_k))
             if isinstance(val, (int, float)) and not isinstance(val, bool) and val >= 0:
                 stats[dst_k] += float(val)
-                row_tok += float(val)
+                prompt_tok += float(val)
+        out_val = tokens.get("output", row.get("out"))
+        out_tok = float(out_val) if isinstance(out_val, (int, float)) and not isinstance(out_val, bool) and out_val >= 0 else 0.0
         cred = row.get("reported_credits")
         if isinstance(cred, (int, float)) and not isinstance(cred, bool) and math.isfinite(cred) and cred >= 0:
             stats["credit_samples"] += 1.0
             stats["credits"] += float(cred)
-            stats["credit_tokens"] += row_tok
+            stats["credit_tokens"] += (prompt_tok + out_tok)
 
     metrics: dict[str, dict[str, Any]] = {}
     for key, stats in acc.items():

@@ -237,10 +237,19 @@ def test_group_sync_filters_meta_models_compliance_and_avoids_cache_only_ranking
     usage = [
         {"served_model": "raccoon/glm-5.3", "status": 200, "tokens": {"input": 100, "cache_read": 900}, "reported_credits": 50.0},
         {"served_model": "raccoon/glm-5.3", "status": 500, "rejected": True, "tokens": {"input": 100, "cache_read": 900}, "reported_credits": 50.0},
-        {"served_model": "workbuddy/glm-5.3", "status": 200, "tokens": {"input": 400, "cache_read": 600}, "reported_credits": 1.0},
-        {"served_model": "workbuddy/glm-5.3", "status": 200, "tokens": {"input": 400, "cache_read": 600}, "reported_credits": 1.0},
+        {"served_model": "workbuddy/glm-5.3", "status": 200, "tokens": {"input": 400, "cache_read": 600, "output": 1000}, "reported_credits": 2.0},
+        {"served_model": "workbuddy/glm-5.3", "status": 200, "tokens": {"input": 400, "cache_read": 600, "output": 1000}, "reported_credits": 2.0},
     ]
-    res = plan_group_sync(models, quotas, usage, compliance_excluded=["custom-compliant"])
+    res = plan_group_sync(models, quotas, usage, compliance_excluded=["copilot", "custom-compliant"])
     assert res["diff"]["excluded_compliance"] == ["copilot/gpt-5.3", "custom-compliant/glm-5.3"]
     assert res["diff"]["excluded_meta_models"] == ["trae-cn/max-model", "workbuddy/auto", "workbuddy/default"]
     assert res["groups"]["group/nerelan-glm-5-3"]["members"] == ["workbuddy/glm-5.3", "raccoon/glm-5.3"]
+    # credits_per_1m matches observed_credit_multipliers output-inclusive token denominator: 4 credits / 4000 tokens = 1000/1M
+    assert _telemetry_by_member(usage)["workbuddy/glm-5.3"]["credits_per_1m"] == 1000.0
+    # Without explicit compliance_excluded, copilot is not silently excluded by undocumented hardcode.
+    default_res = plan_group_sync(
+        {"data": [{"id": "copilot/glm-5.3"}, {"id": "workbuddy/glm-5.3"}]},
+        {"accounts": [{"provider": "copilot", "state": "FRESH", "windows": [{"name": "Credits", "remaining_percent": 50.0}]},
+                      {"provider": "workbuddy", "state": "FRESH", "windows": [{"name": "Credits", "remaining_percent": 50.0}]}]},
+    )
+    assert default_res["diff"]["excluded_compliance"] == []

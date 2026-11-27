@@ -1075,15 +1075,23 @@ class CombinedTrustedHost:
                 continue
             if ts < cutoff:
                 continue
-            served = str(row.get("served_model") or row.get("served") or row.get("model") or "").strip().lower()
-            raw_pool = str(row.get("provider") or (served.split("/", 1)[0] if "/" in served else "")).strip().lower()
-            key = pool_key_for_upstream(raw_pool, pool_limits)
+            served = str(
+                row.get("served_model") or row.get("served")
+                or row.get("asked_model") or row.get("model") or ""
+            ).strip().lower()
+            raw_pool = served.split("/", 1)[0] if "/" in served else ""
+            key = pool_key_for_upstream(raw_pool, pool_limits) if raw_pool else ""
             if not key:
                 continue
             rpm[key] = rpm.get(key, 0) + 1
+            tokens = row.get("tokens") if isinstance(row.get("tokens"), Mapping) else row
             tok = 0
-            for field in ("input", "cache_read", "cache_write", "output"):
-                val = row.get(field)
+            for field in ("input", "in", "cache_read", "cache_write", "output", "out", "reasoning"):
+                if field == "in" and "input" in tokens:
+                    continue
+                if field == "out" and "output" in tokens:
+                    continue
+                val = tokens.get(field)
                 if type(val) in (int, float) and val > 0:
                     tok += int(val)
             tpm[key] = tpm.get(key, 0) + tok
@@ -1630,7 +1638,7 @@ class CombinedTrustedHost:
                 raise TaskStoreError("QUOTA_WAIT:binding_unknown")
             return
         connection = self._store.get_connection_public(binding["connection_id"])
-        from .routing_inputs import effective_pool_limits, pool_key_for_upstream, read_overrides
+        from .routing_inputs import effective_pool_limit_for, effective_pool_limits, read_overrides
         try:
             owner_overrides = read_overrides(getattr(self._store, "_state_path", None))
         except ValueError:
@@ -1651,8 +1659,7 @@ class CombinedTrustedHost:
                     except KeyError:
                         continue
         raw_pool_key = CombinedTrustedHost._binding_pool_key(binding, conns_by_id)
-        pool_key = pool_key_for_upstream(raw_pool_key, pool_limits) if raw_pool_key else ""
-        pool_cfg = (pool_limits.get(raw_pool_key) or pool_limits.get(pool_key) or {}) if pool_key else {}
+        pool_key, pool_cfg = effective_pool_limit_for(raw_pool_key, pool_limits) if raw_pool_key else ("", {})
         pool_limit = pool_cfg.get("max_in_flight")
         in_flight_fn = getattr(self, "_in_flight_by_upstream", None)
         if isinstance(pool_limit, int) and pool_limit > 0 and callable(in_flight_fn):

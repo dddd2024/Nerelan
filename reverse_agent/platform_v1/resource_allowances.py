@@ -112,8 +112,11 @@ def read_allowances(snapshot: Mapping[str, Any] | None, *, now: float) -> dict[s
             promo_until = _timestamp(window.get("free_until") or window.get("promo_until")) or resets_at
             is_promo = (bool(window.get("promotional")) or bool(window.get("free_until"))
                         or any(kw in window["name"].lower() for kw in _PROMO_KEYWORDS))
-            if (is_promo and (remaining is None or remaining > ALLOWANCE_RESERVE_PERCENT)
-                    and (promo_until is None or promo_until > now)):
+            has_promo_headroom = (
+                window.get("unlimited") is True
+                or (remaining is not None and remaining > ALLOWANCE_RESERVE_PERCENT)
+            )
+            if is_promo and has_promo_headroom and (promo_until is None or promo_until > now):
                 promo_map = result.setdefault("promotions", {})
                 promo_entry = {
                     "provider": provider, "window": window["name"],

@@ -14,7 +14,7 @@ from . import model_review_transport
 from .run_store import TaskStoreError
 
 from .quota_guard import CONFIRMED_EXHAUSTION_REASONS
-from .routing_inputs import pool_key_for_upstream, requirements, reset_decision, routing_group_id, upstream_namespace
+from .routing_inputs import effective_pool_limit_for, requirements, reset_decision, routing_group_id, upstream_namespace
 from .resource_allowances import urgency
 import re
 import time
@@ -529,8 +529,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             raw_key = upstream_namespace(candidate.get("model_id")) or str(
                 candidate.get("account_ref") or candidate.get("connection_id") or ""
             ).lower()
-            counter_key = pool_key_for_upstream(raw_key, pool_limits) if raw_key else ""
-            pool_cfg = (pool_limits.get(raw_key) or pool_limits.get(counter_key) or {}) if counter_key else {}
+            counter_key, pool_cfg = effective_pool_limit_for(raw_key, pool_limits) if raw_key else ("", {})
             cap = pool_cfg.get("max_in_flight")
             rpm_cap = pool_cfg.get("rpm_limit")
             tpm_cap = pool_cfg.get("tpm_limit")
