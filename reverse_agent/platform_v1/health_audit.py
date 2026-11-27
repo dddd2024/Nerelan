@@ -515,9 +515,11 @@ def _settlement_basis_breakdown(
         },
         "budget_settlements": {
             "cash_usd": {"rows": 0, "amount": 0.0},
+            "provider_reported_usd": {"rows": 0, "amount": 0.0},
             "list_price_usd": {"rows": 0, "amount": 0.0},
             "credits": {"rows": 0, "amount": 0.0},
             "subscription_quota": {"rows": 0, "tokens": 0},
+            "confirmed_zero": {"rows": 0},
             "unknown": {"rows": 0},
         },
     }
@@ -560,7 +562,13 @@ def _settlement_basis_breakdown(
                     bs["unknown"]["rows"] += 1
                     continue
                 basis = str(doc.get("cost_basis") or doc.get("basis") or "").lower()
-                cash = next((v for v in (doc.get("cash_usd"), doc.get("cost_units") if basis in {"payg", "cash", "cash_usd"} else None)
+                raw_cost_units = doc.get("cost_units")
+                valid_cost_units = (
+                    float(raw_cost_units)
+                    if isinstance(raw_cost_units, (int, float)) and not isinstance(raw_cost_units, bool)
+                    else None
+                )
+                cash = next((v for v in (doc.get("cash_usd"), valid_cost_units if basis in {"payg", "cash", "cash_usd"} else None)
                              if isinstance(v, (int, float)) and not isinstance(v, bool)), None)
                 list_p = next((v for v in (doc.get("list_price_usd"), doc.get("price_units"), doc.get("cost_usd"))
                                if isinstance(v, (int, float)) and not isinstance(v, bool)), None)
@@ -578,9 +586,18 @@ def _settlement_basis_breakdown(
                 else:
                     tok_count = 0
                 classified = False
-                if cash is not None and (cash > 0 or basis in {"payg", "cash", "cash_usd"}):
+                if basis == "confirmed_zero":
+                    bs["confirmed_zero"]["rows"] += 1
+                    classified = True
+                elif cash is not None and (cash > 0 or basis in {"payg", "cash", "cash_usd"}):
                     bs["cash_usd"]["rows"] += 1
                     bs["cash_usd"]["amount"] = round(bs["cash_usd"]["amount"] + float(cash), 6)
+                    classified = True
+                elif basis == "provider_reported_cost" and valid_cost_units is not None and valid_cost_units > 0:
+                    bs["provider_reported_usd"]["rows"] += 1
+                    bs["provider_reported_usd"]["amount"] = round(
+                        bs["provider_reported_usd"]["amount"] + valid_cost_units, 6
+                    )
                     classified = True
                 elif isinstance(cred, (int, float)) and not isinstance(cred, bool) and (cred > 0 or "credit" in basis):
                     bs["credits"]["rows"] += 1

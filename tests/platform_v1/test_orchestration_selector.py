@@ -336,6 +336,8 @@ def test_fast_path_eligible_guards_r2_and_high_difficulty():
     assert r2["eligible"] is False and r2["recommended_mode"] == "sequential_team"
     assert fast_path_eligible({"difficulty": 1}, changed_paths=["./AGENTS.md"])["eligible"] is False
     assert fast_path_eligible({"difficulty": 1}, changed_paths=["agents.md"])["eligible"] is False
+    assert fast_path_eligible({"difficulty": 1}, changed_paths=["x/../AGENTS.md"])["eligible"] is False
+    assert fast_path_eligible({"difficulty": 1}, changed_paths=["../outside.py"])["eligible"] is False
 
     empty_scope = fast_path_eligible({"difficulty": 1}, changed_paths=[])
     assert empty_scope["eligible"] is False and "unknown_scope_paths" in empty_scope["reasons"]

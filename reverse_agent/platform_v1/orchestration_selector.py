@@ -72,6 +72,7 @@ def fast_path_eligible(
 ) -> dict[str, Any]:
     """Recommend single-implementer + independent-review fast path for scoped R1 tasks."""
     import fnmatch
+    import posixpath
 
     r2_patterns = (
         "agents.md", "docs/agents/*", ".github/workflows/*", "reverse_agent/landing_review.py",
@@ -94,10 +95,10 @@ def fast_path_eligible(
     elif len(paths) > 4:
         reasons.append("too_many_changed_paths")
     for p in paths:
-        norm = p
-        while norm.startswith("./"):
-            norm = norm[2:]
-        norm = norm.lstrip("/").lower()
+        norm = posixpath.normpath(p.lstrip("/")).lower()
+        if norm in {".", ".."} or norm.startswith("../"):
+            reasons.append(f"invalid_path:{p}")
+            break
         if any(fnmatch.fnmatchcase(norm, pat) for pat in r2_patterns):
             reasons.append(f"r2_sensitive_path:{p}")
             break

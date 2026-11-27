@@ -371,11 +371,47 @@ def test_probe_zero_samples_is_unknown_and_settlement_basis_breakdown(tmp_path: 
     )
     conn.execute(
         "INSERT INTO platform_budget_reservations VALUES ('b4', ?, ?)",
-        (json.dumps({"cost_basis": "list_price_estimate", "price_units": 0.063574, "tokens": {"input": 28686, "output": 496}}), RECENT),
+        (json.dumps({
+            "state": "UNKNOWN",
+            "cost_basis": "list_price_estimate",
+            "cost_units": None,
+            "price_units": 0.063574,
+            "actual_windows": {"five_hour": None, "weekly": None},
+            "tokens": {"input": 28686, "cache_read": 12416, "cache_write": None, "output": 496, "reasoning": None},
+        }), RECENT),
     )
     conn.execute(
         "INSERT INTO platform_budget_reservations VALUES ('b5', ?, ?)",
-        (json.dumps({"cost_basis": "unknown"}), RECENT),
+        (json.dumps({
+            "state": "UNKNOWN",
+            "cost_basis": "unknown",
+            "cost_units": None,
+            "price_units": None,
+            "actual_windows": {"five_hour": None},
+            "tokens": {"input": None},
+        }), RECENT),
+    )
+    conn.execute(
+        "INSERT INTO platform_budget_reservations VALUES ('b6', ?, ?)",
+        (json.dumps({
+            "state": "UNKNOWN",
+            "cost_basis": "provider_reported_cost",
+            "cost_units": 0.42,
+            "price_units": 0.30,
+            "actual_windows": {"five_hour": None, "weekly": None},
+            "tokens": {"input": 1000, "cache_read": None, "cache_write": None, "output": 200, "reasoning": None},
+        }), RECENT),
+    )
+    conn.execute(
+        "INSERT INTO platform_budget_reservations VALUES ('b7', ?, ?)",
+        (json.dumps({
+            "state": "UNKNOWN",
+            "cost_basis": "confirmed_zero",
+            "cost_units": 0.0,
+            "price_units": 0.0,
+            "actual_windows": {},
+            "tokens": {"input": 0, "cache_read": 0, "cache_write": 0, "output": 0, "reasoning": 0},
+        }), RECENT),
     )
     conn.commit()
     conn.close()
@@ -396,7 +432,9 @@ def test_probe_zero_samples_is_unknown_and_settlement_basis_breakdown(tmp_path: 
 
     bs = report["settlement_basis_breakdown"]["budget_settlements"]
     assert bs["cash_usd"] == {"rows": 1, "amount": 0.42}
+    assert bs["provider_reported_usd"] == {"rows": 1, "amount": 0.42}
     assert bs["credits"] == {"rows": 1, "amount": 15.5}
     assert bs["subscription_quota"] == {"rows": 1, "tokens": 2500}
     assert bs["list_price_usd"] == {"rows": 1, "amount": 0.063574}
+    assert bs["confirmed_zero"] == {"rows": 1}
     assert bs["unknown"] == {"rows": 1}
