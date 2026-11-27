@@ -73,7 +73,11 @@ _NONZERO_EXIT = re.compile(r"opencode_nonzero:exit=(\d+)")
 # Functional validation that failed before judging the model's patch: the attempt was
 # prepared on a base other than the contract's (#1526 host bug), outside the worktree
 # root, or the host could not read its own contract or observation.
-HOST_VALIDATION_DETAILS = frozenset({"functional_base_mismatch", "functional_worktree_root_required"})
+HOST_VALIDATION_DETAILS = frozenset({
+    "functional_base_mismatch",
+    "functional_worktree_root_required",
+    "functional_check_not_run",
+})
 HOST_VALIDATION_PREFIXES = ("functional_contract_", "functional_observation_failed:", "host_validation_contract_")
 
 
@@ -88,6 +92,8 @@ def neutral_failure(classification: str, detail: str) -> str:
     lowered = classification.lower()
     if lowered in HOST_RETRY_CLASSES or lowered in HOST_PLUMBING_CLASSES:
         return lowered
+    if lowered == "functional_check_not_run":
+        return "functional_check_not_run"
     if lowered.startswith("model_review_abandoned_no_reply"):
         return "model_review_abandoned_no_reply"
     if REVIEW_REFUSED_RE.search(f"{classification} {detail}"):
