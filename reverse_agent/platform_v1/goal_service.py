@@ -7,6 +7,7 @@ truth.  Planning is deterministic and editable; it makes no model call.
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from dataclasses import asdict, dataclass, replace
 import os
 import re
@@ -1311,9 +1312,21 @@ class GoalService:
         """
         execution_id = getattr(attempt, "execution_id", "")
         attempt_id = getattr(attempt, "id", "")
-        if (observations or getattr(attempt, "status", "") != "FAILED" or not execution_id
+        status = getattr(attempt, "status", "")
+        if (observations or status not in {"FAILED", "BLOCKED"} or not execution_id
                 or not attempt_id or not hasattr(attempt, "evidence_refs")):
             return False
+        if status == "BLOCKED":
+            conn = getattr(self.store, "_conn", None)
+            if conn is None:
+                return False
+            with getattr(self.store, "_lock", nullcontext()):
+                ran = conn.execute(
+                    "SELECT 1 FROM task_events WHERE task_id = ? AND type IN ('EXECUTOR_RUNNING', 'EXECUTOR_COMPLETED') LIMIT 1",
+                    (attempt_id,),
+                ).fetchone()
+            if ran is not None:
+                return False
         from .artifact_handoff import _load_evidence
         from .contract_recovery import FIXUP
         try:
@@ -1346,9 +1359,21 @@ class GoalService:
         """
         execution_id = getattr(attempt, "execution_id", "")
         attempt_id = getattr(attempt, "id", "")
-        if (observations or getattr(attempt, "status", "") != "FAILED" or not execution_id
+        status = getattr(attempt, "status", "")
+        if (observations or status not in {"FAILED", "BLOCKED"} or not execution_id
                 or not attempt_id or not hasattr(attempt, "evidence_refs")):
             return False
+        if status == "BLOCKED":
+            conn = getattr(self.store, "_conn", None)
+            if conn is None:
+                return False
+            with getattr(self.store, "_lock", nullcontext()):
+                ran = conn.execute(
+                    "SELECT 1 FROM task_events WHERE task_id = ? AND type IN ('EXECUTOR_RUNNING', 'EXECUTOR_COMPLETED') LIMIT 1",
+                    (attempt_id,),
+                ).fetchone()
+            if ran is not None:
+                return False
         from .artifact_handoff import _load_evidence
         from .contract_recovery import FAILED
         from .functional_validation import git_output
@@ -1373,6 +1398,14 @@ class GoalService:
                     and isinstance(restored.get("recovery_tree"), str)
                     and restored["recovery_tree"] == failed_tree["tree"])
         if failed_tree.get("changed_paths") != []:
+            try:
+                artifact_input = _load_evidence(attempt, "ArtifactInput", execution_id)
+            except (TaskStoreError, ValueError, TypeError, KeyError):
+                artifact_input = None
+            producer = artifact_input.get("producer") if isinstance(artifact_input, dict) else None
+            input_tree = producer.get("tree") if isinstance(producer, dict) else None
+            if isinstance(input_tree, str) and input_tree and input_tree == failed_tree["tree"]:
+                return True
             return False
         base_tree = failed_tree.get("base_tree")
         if isinstance(base_tree, str) and base_tree:

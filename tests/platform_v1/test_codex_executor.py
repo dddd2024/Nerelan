@@ -440,3 +440,93 @@ def test_agent_session_id_drives_exact_cost_attribution(repository, tmp_path):
     complete = all_in_economics(economics_runs(correlated), basis="cash")["single"]
     assert complete["cost_per_accepted_all_in"] == 0.25
     assert complete["unpriced_runs"] == 0
+
+
+def test_codex_review_without_stream_model_uses_locked_cli_model_and_records_usage(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1.codex_executor import CodexExecutor
+    from reverse_agent.platform_v1.codex_protocol import CodexJsonl, CodexTurn
+    from reverse_agent.platform_v1.run_store import TaskStore
+
+    parser = CodexJsonl()
+    parser.feed(
+        b'{"type":"thread.started","thread_id":"thr-1"}\n'
+        b'{"type":"turn_context","payload":{"model":"gpt-6.1-sol"}}\n'
+        b'{"type":"turn.started"}\n'
+        b'{"type":"item.completed","item":{"type":"agent_message","text":"{\\"verdict\\":\\"ACCEPT\\",\\"findings\\":[]}"}}\n'
+        b'{"type":"turn.completed","usage":{"input_tokens":1200,"cached_input_tokens":800,"output_tokens":90}}\n'
+    )
+    parsed = parser.finish()
+    assert parsed.models == ["gpt-6.1-sol"]
+
+    # Test real CodexJsonl parser on raw JSONL stream omitting explicit model field.
+    store = TaskStore(":memory:")
+    task = store.create_task(title="codex-review", executor_kind="codex", binding_ref="chatgpt-gpt", repository="o/r")
+    ws = tmp_path / task.id
+    ws.mkdir()
+    resolution = SimpleNamespace(
+        binding_ref="chatgpt-gpt", connection_id="c1", executor_id="codex",
+        provider_id="codex", model_id="gpt-6.1-sol", auth_method="external_cli_session",
+        relay_required=False, external_session_status="available",
+    )
+    executor = CodexExecutor(binding_resolution=resolution, repo_dir=str(tmp_path), base_ref="a" * 40, sandbox="read-only")
+    monkeypatch.setattr(executor, "_verify_workspace", lambda *a: None)
+
+    def _stream_no_model(prepared, prompt, p, *, runtime_path=None):  # noqa: ARG001
+        p.feed(
+            b'{"type":"thread.started","thread_id":"thr-rev-1"}\n'
+            b'{"type":"turn.started"}\n'
+            b'{"type":"item.completed","item":{"type":"agent_message","text":"{\\"verdict\\":\\"ACCEPT\\",\\"findings\\":[]}"}}\n'
+            b'{"type":"turn.completed","usage":{"input_tokens":1200,"cached_input_tokens":800,"output_tokens":90}}\n'
+        )
+        return 0
+
+    monkeypatch.setattr(executor, "_stream", _stream_no_model)
+    prepared = SimpleNamespace(worktree=ws, base_sha="a" * 40, execution_id=task.execution_id, executor_kind="codex", cli_path="codex.exe")
+    out = executor.execute_review_prepared(prepared, store, task_id=task.id, prompt="Review diff")
+    assert out["actual_models"] == ["gpt-6.1-sol"]
+    assert out["model_source"] == "host_locked_cli_flag"
+    assert out["request_id"] == "thr-rev-1"
+    obs = store.list_usage_observations(task.id)
+    assert len(obs) == 1 and obs[0].status == "PARTIAL"
+    assert obs[0].source_kind == "native_summary"
+    assert (obs[0].input_units, obs[0].cache_read_units, obs[0].output_units) == (400, 800, 90)
+
+    # Multi-model review turn stays UNKNOWN with no duplicated token counters (mirrors execute_role_prepared).
+    task2 = store.create_task(title="codex-review-2", executor_kind="codex", binding_ref="chatgpt-gpt", repository="o/r")
+    ws2 = tmp_path / task2.id
+    ws2.mkdir()
+    def _stream_two_models(prepared, prompt, p, *, runtime_path=None):  # noqa: ARG001
+        p.feed(
+            b'{"type":"thread.started","thread_id":"thr-rev-2","model":"gpt-6.1-sol"}\n'
+            b'{"type":"turn.started","model":"gpt-6-sol"}\n'
+            b'{"type":"item.completed","item":{"type":"agent_message","text":"{\\"verdict\\":\\"ACCEPT\\",\\"findings\\":[]}"}}\n'
+            b'{"type":"turn.completed","usage":{"input_tokens":1200,"cached_input_tokens":800,"output_tokens":90}}\n'
+        )
+        return 0
+
+    monkeypatch.setattr(executor, "_stream", _stream_two_models)
+    prepared2 = SimpleNamespace(worktree=ws2, base_sha="a" * 40, execution_id=task2.execution_id, executor_kind="codex", cli_path="codex.exe")
+    out2 = executor.execute_review_prepared(prepared2, store, task_id=task2.id, prompt="Review diff")
+    assert out2["actual_models"] == ["gpt-6.1-sol", "gpt-6-sol"]
+    assert out2["model_source"] == "transport_stream"
+    obs2 = store.list_usage_observations(task2.id)
+    assert len(obs2) == 2 and all(o.status == "UNKNOWN" and o.input_units is None for o in obs2)
+
+    # Non-codex subclass must still reject empty stream models (no host_locked_cli_flag fallback).
+    from reverse_agent.platform_v1.claude_executor import ClaudeCodeExecutor
+    claude_res = SimpleNamespace(
+        binding_ref="cl-b", connection_id="c2", executor_id="claude_code",
+        provider_id="claude_code", model_id="claude-opus-5-5", auth_method="external_cli_session",
+        relay_required=False, external_session_status="available",
+    )
+    cl_exec = ClaudeCodeExecutor(binding_resolution=claude_res, repo_dir=str(tmp_path), base_ref="a" * 40, sandbox="read-only")
+    monkeypatch.setattr(cl_exec, "_verify_workspace", lambda *a: None)
+    turn_empty = CodexTurn(thread_id="thr-cl-1", completed=True, final_text='{"verdict":"ACCEPT","findings":[]}', models=[], usage=None)
+    monkeypatch.setattr(cl_exec, "_parser", lambda *a: SimpleNamespace(turn=turn_empty, finish=lambda: turn_empty))
+    monkeypatch.setattr(cl_exec, "_stream", lambda *a, **k: 0)
+    with pytest.raises(ExecutorRuntimeError, match="review_not_independent"):
+        cl_exec.execute_review_prepared(
+            SimpleNamespace(worktree=ws, base_sha="a" * 40, execution_id=task.execution_id, executor_kind="claude_code", cli_path="claude"),
+            store, task_id=task.id, prompt="Review diff",
+        )
+    store._conn.close()

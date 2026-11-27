@@ -604,3 +604,109 @@ def test_review_round_limit_records_draft_pr_handoff_and_active_issue_dedup(revi
     gs.approve(g2.id, expected_revision=1)
     with pytest.raises(TaskStoreError, match=f"active_source_issue_goal_already_running:{g1.id}"):
         gs.launch(g2.id, expected_revision=1, window_id=win_id)
+
+
+def test_review_authors_ignores_pre_dispatch_blocked_and_unchanged_reused_repair(review_setup):
+    store, _, producer, consumer, created, repo, base = review_setup
+    prod = store.get_task(producer)
+    goal_id = json.loads(next(r for r in prod.evidence_refs if r["category"] == "ArtifactContract")["detail"])["goal_id"]
+    # 1. Simulate a pre-dispatch BLOCKED discarded attempt with zero usage observations/events.
+    blocked = store.create_task(
+        title="blocked-pre-dispatch",
+        repository=prod.repository,
+        executor_kind="claude_code",
+        binding_ref="b-claude",
+    )
+    store._conn.execute(
+        "UPDATE tasks SET status = 'BLOCKED', failure_classification = 'blocked', "
+        "failure_detail = 'worktree_preparation_failed:missing' WHERE id = ?",
+        (blocked.id,),
+    )
+    store._conn.commit()
+    store._bind_artifact_evidence(
+        blocked.id,
+        category="AttemptDisposition",
+        label=blocked.execution_id,
+        document={"task_id": blocked.id, "execution_id": blocked.execution_id, "disposition": "discarded"},
+    )
+    # 2. Simulate a stalled ReviewRepair reused attempt whose tree matches its ArtifactInput producer tree.
+    reused = store.create_task(
+        title="stalled-repair",
+        repository=prod.repository,
+        executor_kind="opencode",
+        binding_ref="b-opencode",
+    )
+    goal_row = store._conn.execute(
+        "SELECT repository, revision, artifact_digest FROM platform_goals WHERE id = ?",
+        (goal_id,),
+    ).fetchone()
+    accepted = next(r for r in prod.evidence_refs if r["category"] == "AcceptedArtifact")
+    accepted_doc = json.loads(accepted["detail"])
+    prod_tree = accepted_doc["tree"]
+    base_sha = accepted_doc.get("base_commit", "a" * 40)
+    repair_input_doc = {
+        "goal_id": goal_id,
+        "repository": goal_row["repository"],
+        "goal_revision": goal_row["revision"],
+        "goal_artifact_digest": goal_row["artifact_digest"],
+        "plan_task_id": "A",
+        "producer": {
+            "task_id": producer,
+            "execution_id": prod.execution_id,
+            "result_digest": prod.validation_output_digest,
+            "tree": prod_tree,
+        },
+        "producer_digest": accepted["value"],
+    }
+    store._bind_artifact_evidence(
+        reused.id,
+        category="ArtifactInput",
+        label=reused.execution_id,
+        document=repair_input_doc,
+    )
+    store._bind_artifact_evidence(
+        reused.id,
+        category="FailedAttemptTree",
+        label=reused.execution_id,
+        document={
+            "task_id": reused.id, "execution_id": reused.execution_id, "tree": prod_tree,
+            "changed_paths": ["app.py"], "base_commit": base_sha,
+        },
+    )
+    store._bind_artifact_evidence(
+        reused.id,
+        category="AttemptDisposition",
+        label=reused.execution_id,
+        document={"task_id": reused.id, "execution_id": reused.execution_id, "disposition": "reused"},
+    )
+    store._conn.execute("UPDATE tasks SET status = 'FAILED', failure_classification = 'server_stream_stalled' WHERE id = ?", (reused.id,))
+    store._conn.commit()
+
+    # Neither zero-usage non-authoring attempt breaks independent review_authors().
+    assert goal_id and prod.id
+    from reverse_agent.platform_v1.goal_service import GoalService
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
+    gs = GoalService(store=store, control_store=PlatformControlStore(store))
+    assert gs._authored_nothing_without_usage(store.get_task(blocked.id), ()) is True
+    assert gs._authored_nothing_without_usage(store.get_task(reused.id), ()) is True
+
+    # If the tree changed at all, unchanged_without_usage must fail closed (False).
+    changed_reused = store.create_task(title="changed-repair", repository=prod.repository, executor_kind="opencode")
+    store._bind_artifact_evidence(
+        changed_reused.id,
+        category="ArtifactInput",
+        label=changed_reused.execution_id,
+        document=repair_input_doc,
+    )
+    store._bind_artifact_evidence(
+        changed_reused.id,
+        category="FailedAttemptTree",
+        label=changed_reused.execution_id,
+        document={
+            "task_id": changed_reused.id, "execution_id": changed_reused.execution_id, "tree": "f" * 40,
+            "changed_paths": ["app.py"], "base_commit": base_sha,
+        },
+    )
+    store._conn.execute("UPDATE tasks SET status = 'FAILED' WHERE id = ?", (changed_reused.id,))
+    store._conn.commit()
+    assert gs._authored_nothing_without_usage(store.get_task(changed_reused.id), ()) is False

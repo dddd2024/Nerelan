@@ -1421,13 +1421,30 @@ class CombinedTrustedHost:
         account = connection.get("account_ref") or connection["connection_id"]
         need = quota_reservation.task_need(records, binding=binding["binding_id"],
             kind=getattr(task, "kind", "code"), difficulty=str(getattr(task, "difficulty", "unknown")),
-            model=binding["model_id"])
-        rates = self._control_store.quota_calibration(account)
+            model=binding["model_id"], cold_turn_split=True)
+        record_fn = getattr(self._control_store, "quota_calibration_record", None)
+        if callable(record_fn):
+            rates, cal_evidence = record_fn(account)
+        else:
+            rates, cal_evidence = self._control_store.quota_calibration(account), {}
+        rates = dict(rates)
+        live_windows: set[str] = set()
         for window in evidence.get("windows", ()):
             capacity = (window.get("capacity_units") or {}).get("low")
             if quota_reservation._number(capacity) and capacity > 0:
-                rates[quota_reservation.canonical_window(window["window"])] = capacity / 100
-        return quota_reservation.window_need(need, account, {account: rates})
+                wname = quota_reservation.canonical_window(window["window"])
+                rates[wname] = capacity / 100
+                live_windows.add(wname)
+        cal_payload = dict(cal_evidence or {})
+        if live_windows:
+            cal_payload["live_capacity_windows"] = sorted(live_windows)
+        return quota_reservation.window_need(
+            need,
+            account,
+            {account: rates},
+            calibration_evidence={account: cal_payload},
+            now=time.time(),
+        )
 
     def _goal_quota_fit(self, goal, tasks):
         from . import quota_reservation
