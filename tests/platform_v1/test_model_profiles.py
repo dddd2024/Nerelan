@@ -494,3 +494,18 @@ def test_stream_limit_exceeded_is_neutral_executor_plumbing():
         assert p["attempts"] == 0 and p["failed"] == 0
         assert p["failure_attribution"] == {"capability": 0, "upstream": 0, "executor": 1}
         assert p["neutral_failures"][cls] == 1
+
+
+def test_functional_check_not_run_is_neutral_host_validation_detail():
+    from reverse_agent.platform_v1.model_profiles import HOST_VALIDATION_DETAILS, neutral_failure
+    store = TaskStore(":memory:")
+    t_env = _task(store, "opencode-env", "FAILED", "deterministic_validation_failure")
+    store._conn.execute("UPDATE tasks SET failure_detail = ? WHERE id = ?", ("functional_check_not_run", t_env.id))
+    store._conn.commit()
+    assert "functional_check_not_run" in HOST_VALIDATION_DETAILS
+    assert neutral_failure("deterministic_validation_failure", "functional_check_not_run") == "functional_check_not_run"
+    assert neutral_failure("functional_check_not_run", "") == "functional_check_not_run"
+    p = compute_agent_profiles(store)[t_env.binding_ref]
+    assert p["attempts"] == 0 and p["failed"] == 0
+    assert p["failure_attribution"] == {"capability": 0, "upstream": 0, "executor": 1}
+    assert p["neutral_failures"]["functional_check_not_run"] == 1

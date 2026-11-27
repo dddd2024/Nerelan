@@ -532,3 +532,78 @@ def test_repository_base_respects_configured_base_ref_or_origin_main(tmp_path, m
         monkeypatch.setenv("REVERSE_AGENT_BASE_REF", bad_ref)
         with pytest.raises(TaskStoreError, match="functional_base_invalid"):
             fv.repository_base("owner/sample")
+
+
+def test_decode_output_supports_utf8_and_locale_fallback(monkeypatch):
+    assert fv._decode_output("ok\n".encode("utf-8")) == "ok\n"
+    raw_gbk = "不是内部或外部命令".encode("gbk")
+    monkeypatch.setattr(fv.locale, "getpreferredencoding", lambda do_setlocale=True: "gbk")
+    assert fv._decode_output(raw_gbk) == "不是内部或外部命令"
+
+
+@pytest.mark.parametrize("exit_code,output", [
+    (127, b"sh: pytest: command not found\n"),
+    (9009, "'pytest' 不是内部或外部命令，也不是可运行的程序\r\n".encode("gbk")),
+    (1, b"C:\\Python\\python.exe: No module named pytest\n"),
+    (1, b"Error: Cannot find module 'vitest'\n"),
+    (1, b"Error: spawn ENOENT\n"),
+])
+def test_missing_runner_reports_functional_check_not_run(implementation, monkeypatch, exit_code, output):
+    root, base, store, task_id = implementation
+    (root / "app.py").write_text("value = 2\n", encoding="utf-8")
+    if "gbk" in repr(output) or exit_code == 9009:
+        monkeypatch.setattr(fv.locale, "getpreferredencoding", lambda do_setlocale=True: "gbk")
+    monkeypatch.setattr(
+        fv,
+        "_run_process",
+        lambda check, argv, cwd, env: {
+            **check,
+            "argv": argv,
+            "argv_digest": fv.digest(argv),
+            "exit_code": exit_code,
+            "timed_out": False,
+            "duration_ms": 12,
+            "output_digest": fv.digest(output.decode("latin1")),
+            "output_bytes": len(output),
+            "output_truncated": False,
+            "_output_tail": output,
+        },
+    )
+    command, code, reason, _ = fv.run_task_validation(store, task_id, worktree=root, base_commit=base,
+                                                      execution_id="run-missing")
+    assert (command, code, reason) == (fv.FUNCTIONAL_COMMAND_ID, 1, "functional_check_not_run")
+    events = [item for item in store.get_task(task_id).events if item["type"] == "VALIDATED"]
+    assert events[-1]["title"] == "Functional check could not run"
+    assert "no tests observed; the check could not run" in events[-1]["description"]
+
+
+@pytest.mark.parametrize("exit_code,output", [
+    (2, b"=========================== short test summary info ===========================\nERROR collecting test_app.py\n"),
+    (1, b"E   SyntaxError: invalid syntax\n"),
+    (1, b"npm ERR! code ELIFECYCLE\nnpm ERR! mypkg@1.0.0 pretest: `eslint .`\nnpm ERR! Exit status 1\n"),
+    (127, b"npm ERR! code ELIFECYCLE\nnpm ERR! mypkg@1.0.0 pretest: `sh: eslint: not found`\n"),
+    (1, b"Error: Cannot find module './utils'\n"),
+    (1, b"Error: ENOENT: no such file or directory, open 'missing.json'\n"),
+])
+def test_zero_tests_collection_or_pretest_failure_stays_functional_check_failed(implementation, monkeypatch, exit_code, output):
+    root, base, store, task_id = implementation
+    (root / "app.py").write_text("value = 2\n", encoding="utf-8")
+    monkeypatch.setattr(
+        fv,
+        "_run_process",
+        lambda check, argv, cwd, env: {
+            **check,
+            "argv": argv,
+            "argv_digest": fv.digest(argv),
+            "exit_code": exit_code,
+            "timed_out": False,
+            "duration_ms": 12,
+            "output_digest": fv.digest(output.decode("latin1")),
+            "output_bytes": len(output),
+            "output_truncated": False,
+            "_output_tail": output,
+        },
+    )
+    result = fv.validate_functional(store.get_task(task_id), worktree=root, base_commit=base, execution_id="run-fail")
+    assert result["passed"] is False and result["verified"] is False
+    assert result["reason"] == "functional_check_failed"
