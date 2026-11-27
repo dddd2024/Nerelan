@@ -102,7 +102,7 @@ try {
     Log "no run.env.json found; starting with the host defaults"
   }
 
-  if ([string]::IsNullOrWhiteSpace($env:REVERSE_AGENT_MAGPIE_EXE) -and (Test-Path -LiteralPath $MagpiePath)) {
+  if ([string]::IsNullOrWhiteSpace($env:REVERSE_AGENT_MAGPIE_EXE) -and -not [string]::IsNullOrWhiteSpace($MagpiePath) -and (Test-Path -LiteralPath $MagpiePath)) {
     [Environment]::SetEnvironmentVariable("REVERSE_AGENT_MAGPIE_EXE", ($MagpiePath -replace '\\', '/'), "Process")
     Log "exported REVERSE_AGENT_MAGPIE_EXE from MagpiePath"
   }
