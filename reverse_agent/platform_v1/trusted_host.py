@@ -18,6 +18,7 @@ credential relay used internally during execution.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from http.server import ThreadingHTTPServer
 import collections
@@ -26,6 +27,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import sqlite3
 import subprocess
 import threading
 import time
@@ -853,7 +855,9 @@ class CombinedTrustedHost:
         from .resource_allowances import effective_cost
         allowances = self._resource_allowances(refresh=not forecast)
         allowance_now = time.time()
-        in_flight_by_upstream = None if forecast else self._in_flight_by_upstream(by_id, connections)
+        in_flight_by_upstream = None if forecast else self._in_flight_by_upstream(
+            by_id, connections, exclude_task_id=getattr(task, "id", None),
+        )
         pool_limits = effective_pool_limits(owner)
         for binding in bindings:
             connection = connections.get(binding["connection_id"], {})
@@ -1019,6 +1023,7 @@ class CombinedTrustedHost:
         connections: Mapping[str, Mapping[str, Any]],
         *,
         exclude_task_id: str | None = None,
+        fail_closed: bool = False,
     ) -> dict[str, int]:
         """Count active RUNNING or claimed tasks grouped by physical upstream pool (#1533)."""
         task_store = getattr(self, "_task_store", None)
@@ -1027,8 +1032,9 @@ class CombinedTrustedHost:
             return {}
         now_ms = int(time.time() * 1000)
         counts: dict[str, int] = {}
+        lock = getattr(task_store, "_lock", None) or nullcontext()
         try:
-            with task_store._lock:
+            with lock:
                 has_claims = conn.execute(
                     "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'platform_coordinator_claims'"
                 ).fetchone()
@@ -1045,7 +1051,10 @@ class CombinedTrustedHost:
                     rows = conn.execute(
                         "SELECT id, binding_ref FROM tasks WHERE status = 'RUNNING' AND binding_ref != ''"
                     ).fetchall()
-        except Exception:  # noqa: BLE001
+        except sqlite3.Error as exc:
+            logging.getLogger(__name__).warning("pool concurrency count failed: %s", exc)
+            if fail_closed:
+                raise TaskStoreError("QUOTA_WAIT:pool_concurrency_check_failed") from exc
             return {}
         for row in rows:
             if exclude_task_id and str(row["id"] or "") == exclude_task_id:
@@ -1555,10 +1564,13 @@ class CombinedTrustedHost:
         pool_limit = (pool_limits.get(pool_key) or {}).get("max_in_flight")
         in_flight_fn = getattr(self, "_in_flight_by_upstream", None)
         if isinstance(pool_limit, int) and pool_limit > 0 and callable(in_flight_fn):
+            # Serialized within the single coordinator loop before claim_task();
+            # across independent host processes this check acts as a soft bound.
             in_flight = in_flight_fn(
                 bindings_by_id,
                 conns_by_id,
                 exclude_task_id=task.id,
+                fail_closed=True,
             ).get(pool_key, 0)
             if in_flight >= pool_limit:
                 raise TaskStoreError(f"QUOTA_WAIT:pool_concurrency_limit:{pool_key}:{in_flight}/{pool_limit}")

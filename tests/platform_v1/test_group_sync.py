@@ -95,3 +95,74 @@ def test_group_sync_rejects_account_when_any_mandatory_window_is_exhausted() -> 
     ]
     removed = {entry["member"]: entry["reason"] for entry in result["diff"]["removed_unhealthy"]}
     assert removed["raccoon/glm-5.3"] == "quota_exhausted"
+
+
+def test_group_sync_preserves_default_paid_exclusions_under_partial_override() -> None:
+    models_payload = {
+        "data": [
+            {"id": "claude/claude-opus-4"},
+            {"id": "codex/gpt-5.3"},
+            {"id": "custom-paid/glm-5.3"},
+            {"id": "workbuddy/glm-5.3"},
+            {"id": "trae-cn/glm-5.3"},
+        ],
+    }
+    res_no_providers = plan_group_sync(models_payload, paid_subscriptions={"other": True})
+    assert res_no_providers["diff"]["excluded_paid_subscription"] == [
+        "claude/claude-opus-4",
+        "codex/gpt-5.3",
+    ]
+    res_custom = plan_group_sync(
+        models_payload,
+        paid_subscriptions={"providers": {"custom-paid": {"enabled": True}}},
+    )
+    assert res_custom["diff"]["excluded_paid_subscription"] == [
+        "claude/claude-opus-4",
+        "codex/gpt-5.3",
+        "custom-paid/glm-5.3",
+    ]
+
+
+def test_run_group_sync_wires_magpie_fetch_and_usage_cache(tmp_path: Path, monkeypatch) -> None:
+    import json
+    from reverse_agent.model_access import http_safe
+    from reverse_agent.platform_v1.group_sync import run_group_sync
+
+    cache_file = tmp_path / "magpie_usage_cache.jsonl"
+    cache_file.write_text(
+        json.dumps({
+            "served": "workbuddy/glm-5.3",
+            "status": 200,
+            "rejected": False,
+            "input": 100,
+            "cache_read": 900,
+            "cache_write": 0,
+        }) + "\n",
+        encoding="utf-8",
+    )
+
+    class _Resp:
+        def __init__(self, payload: dict) -> None:
+            self._data = json.dumps(payload).encode("utf-8")
+
+        def read(self) -> bytes:
+            return self._data
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    def _fake_urlopen(req, timeout=3.0):  # noqa: ARG001
+        url = req.full_url
+        if url.endswith("/v1/models"):
+            return _Resp({"data": [{"id": "workbuddy/glm-5.3"}, {"id": "trae-cn/glm-5.3"}, {"id": "codex/gpt-5.3"}]})
+        if "/v1/magpie/quotas" in url:
+            return _Resp({"object": "list", "data": []})
+        raise AssertionError(f"unexpected URL {url}")
+
+    monkeypatch.setattr(http_safe, "urlopen", _fake_urlopen)
+    plan = run_group_sync(magpie_url="http://127.0.0.1:3425", cache_path=cache_file)
+    assert plan["groups"]["group/nerelan-glm-5-3"]["members"] == ["workbuddy/glm-5.3", "trae-cn/glm-5.3"]
+    assert plan["diff"]["excluded_paid_subscription"] == ["codex/gpt-5.3"]

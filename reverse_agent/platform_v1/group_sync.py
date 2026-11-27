@@ -24,8 +24,20 @@ _IGNORED_NAMESPACES = frozenset({"group", "auto"})
 
 
 def _paid_provider_names(paid_subscriptions: Mapping[str, Any] | None) -> set[str]:
-    providers = (paid_subscriptions or DEFAULT_PAID_SUBSCRIPTIONS).get("providers") or {}
-    return {str(name).strip().lower() for name in providers if isinstance(name, str) and name.strip()}
+    names: set[str] = {
+        str(name).strip().lower()
+        for name in (DEFAULT_PAID_SUBSCRIPTIONS.get("providers") or {})
+        if isinstance(name, str) and name.strip()
+    }
+    if isinstance(paid_subscriptions, Mapping):
+        extra = paid_subscriptions.get("providers")
+        if isinstance(extra, Mapping):
+            names.update(
+                str(name).strip().lower()
+                for name in extra
+                if isinstance(name, str) and name.strip()
+            )
+    return names
 
 
 def _is_healthy_provider_accounts(accounts: Sequence[Mapping[str, Any]]) -> tuple[bool, str]:
@@ -253,8 +265,13 @@ def run_group_sync(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Plan Magpie group/<id> routing sync (dry-run by default).")
-    parser.add_argument("--dry-run", action="store_true", default=True, help="Compute and print diff without writing")
+    parser = argparse.ArgumentParser(description="Read-only Magpie group/<id> routing planner (dry-run only).")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=True,
+        help="Read-only dry-run mode (only mode currently implemented; no writes performed)",
+    )
     parser.add_argument("--json", action="store_true", dest="as_json", help="Emit JSON output")
     parser.add_argument("--magpie-url", default=None, help="Loopback Magpie URL")
     parser.add_argument("--cache-path", default=None, help="Optional magpie_usage_cache.jsonl path")

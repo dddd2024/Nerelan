@@ -214,3 +214,47 @@ def test_claim_time_pool_capacity_blocks_concurrent_gateway_dispatch(tmp_path: P
     control.complete_task_claim(window_id=win.id, task_id=t1.id, owner="o", epoch=epoch1, result="success")
     host._prepare_task_quota(task_store.get_task(t2.id))
     task_store._conn.close()
+
+
+def test_pool_concurrency_check_handles_lockless_store_and_fails_closed_on_sqlite_error(tmp_path: Path) -> None:
+    import sqlite3
+    from types import SimpleNamespace
+    from reverse_agent.platform_v1.run_store import TaskStoreError
+    from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+
+    state = tmp_path / "model_setup_state.json"
+    overrides = tmp_path / "model_routing_overrides.json"
+    overrides.write_text(
+        json.dumps({"pool_limits": {"token-sensenova": {"max_in_flight": 1}}}),
+        encoding="utf-8",
+    )
+
+    class _FakeStore:
+        _state_path = state
+
+        def list_bindings_public(self):
+            return [{"binding_id": "b-sense", "connection_id": "magpie", "model_id": "token-sensenova/glm-5.3"}]
+
+        def list_connections_public(self):
+            return [{"connection_id": "magpie", "auth_method": "none", "account_ref": "magpie"}]
+
+        def get_connection_public(self, _cid: str):
+            return {"connection_id": "magpie", "auth_method": "none", "account_ref": "magpie"}
+
+    # Lockless minimal TaskStore double works cleanly (does not raise AttributeError).
+    raw_conn = sqlite3.connect(":memory:")
+    raw_conn.row_factory = sqlite3.Row
+    raw_conn.execute("CREATE TABLE tasks (id TEXT PRIMARY KEY, status TEXT, binding_ref TEXT)")
+    raw_conn.execute("INSERT INTO tasks VALUES ('t-other', 'RUNNING', 'b-sense')")
+    host = CombinedTrustedHost.__new__(CombinedTrustedHost)
+    host._store = _FakeStore()
+    host._task_store = SimpleNamespace(_conn=raw_conn)
+
+    task = SimpleNamespace(id="t-new", binding_ref="b-sense", executor_kind="opencode", status="QUEUED")
+    with pytest.raises(TaskStoreError, match="QUOTA_WAIT:pool_concurrency_limit:token-sensenova:1/1"):
+        host._prepare_task_quota(task)
+
+    # DB failure fails closed during _prepare_task_quota instead of bypassing pool cap.
+    raw_conn.close()
+    with pytest.raises(TaskStoreError, match="QUOTA_WAIT:pool_concurrency_check_failed"):
+        host._prepare_task_quota(task)
