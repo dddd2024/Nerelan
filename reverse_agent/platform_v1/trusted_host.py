@@ -369,10 +369,62 @@ class CombinedTrustedHost:
         if not path.is_file():
             return None
         try:
+            from . import magpie_usage_ingest
             from .health_audit import run_health_audit
-            return run_health_audit(path)
+
+            db_cache = path.parent / "magpie_usage_cache.jsonl"
+            if db_cache.is_file() or not os.environ.get("REVERSE_AGENT_RUNTIME_DIR"):
+                cache_path = db_cache
+            else:
+                cache_path = magpie_usage_ingest.default_cache_path()
+
+            exe = magpie_usage_ingest.magpie_executable()
+            if exe is None:
+                try:
+                    settings = self._store.get_magpie()
+                except Exception:  # noqa: BLE001
+                    settings = {}
+                raw_exe = str(settings.get("executable") or "").strip() if settings.get("enabled") else ""
+                if raw_exe:
+                    candidate = Path(raw_exe)
+                    if candidate.is_absolute() and candidate.is_file():
+                        exe = candidate
+            if exe is not None:
+                try:
+                    rows = magpie_usage_ingest.read_usage(exe)
+                    if rows:
+                        magpie_usage_ingest.merge_into_cache(rows, path=cache_path)
+                except Exception:  # noqa: BLE001 - best-effort read-only Magpie usage refresh
+                    pass
+
+            closed_refs: set[tuple[str, int]] | None = None
+            closed_issues: set[int] | None = None
+            source_issues = getattr(getattr(self, "_goal_service", None), "source_issues", None)
+            ref_getter = getattr(source_issues, "cached_closed_issue_refs", None)
+            if callable(ref_getter):
+                cached_refs = ref_getter()
+                if cached_refs:
+                    closed_refs = set(cached_refs)
+            else:
+                getter = getattr(source_issues, "cached_closed_issues", None)
+                if callable(getter):
+                    cached = getter()
+                    if cached:
+                        closed_issues = set(cached)
+
+            return run_health_audit(
+                path,
+                magpie_cache_path=cache_path if cache_path.is_file() else None,
+                closed_issue_numbers=closed_issues,
+                closed_issue_refs=closed_refs,
+            )
         except Exception:  # noqa: BLE001 - audit failure must never interrupt pool monitoring
             return None
+
+    def _reconcile_task_usage(self, task: Any) -> dict[str, Any]:
+        """Reconcile missing/incomplete task usage against Magpie via positive identity (#1531)."""
+        from .real_settlement import reconcile_task_usage_from_magpie
+        return reconcile_task_usage_from_magpie(self._task_store, task, env=os.environ)
 
     def _build_pool_monitor(self) -> Any:
         from .multi_account import MultiAccountConfig
@@ -2142,6 +2194,7 @@ class CombinedTrustedHost:
                 host_code_version=_host_source_head() if self._execution_authority_sha else "",
                 # Independent of REVERSE_AGENT_WORKSPACE_RECLAIM: works when reclaim is off.
                 disk_guard=configured_disk_guard(workspace_root),
+                usage_reconciler=self._reconcile_task_usage,
             )
             self._pool_monitor = self._build_pool_monitor()
             if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1":

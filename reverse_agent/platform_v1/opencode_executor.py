@@ -2154,6 +2154,12 @@ class OpenCodeExecutor:
                 })
         _persist_usage_observations(store, task_id, usage_observations)
         events_raw, _json_error = self._parse_json_lines(stdout)
+        opencode_session_id, opencode_request_ids = _extract_opencode_identities(events_raw)
+        identity_meta: dict[str, Any] = {}
+        if opencode_session_id:
+            identity_meta["agent_session_id"] = opencode_session_id
+        if opencode_request_ids:
+            identity_meta["request_ids"] = opencode_request_ids
         executor_evidence = _build_executor_evidence(
             events_raw,
             exit_code=exit_code,
@@ -2166,7 +2172,7 @@ class OpenCodeExecutor:
                        and event["part"].get("type") == "text" and isinstance(event["part"].get("text"), str)]
         if final_parts:
             _emit(event_callback, task_id, {"type": "EXECUTOR_COMPLETED", "title": "OpenCode response",
-                  "metadata": {"final_text": redact_secrets(final_parts[-1]), "executor_kind": "opencode"}})
+                  "metadata": {"final_text": redact_secrets(final_parts[-1]), "executor_kind": "opencode", **identity_meta}})
 
         stderr_redacted = redact_secrets(_sanitize_output(stderr, 2048))
 
@@ -2197,6 +2203,7 @@ class OpenCodeExecutor:
                     "error_diagnostic": error_diagnostic,
                     "output_truncated": owned.output_truncated,
                     "role": role_context.role,
+                    **identity_meta,
                 },
             })
             changed_files = _collect_changed_files(worktree)
@@ -2232,6 +2239,7 @@ class OpenCodeExecutor:
                 "output_truncated": owned.output_truncated,
                 "model": self._model_id,
                 "role": role_context.role,
+                **identity_meta,
             },
         })
 
@@ -2533,6 +2541,7 @@ class OpenCodeExecutor:
                 "session_provenance": result.session_digest,
                 "usage_event_count": result.usage_event_count,
                 "provider_hard_cutoff_claimed": False,
+                **({"agent_session_id": result.session_id} if result.session_id else {}),
             },
         })
         if not result.success:
@@ -3194,6 +3203,44 @@ def _extract_usage_observations(
             }
         )
     return observations
+
+
+def _safe_opencode_identity(value: Any, *, max_len: int = 128) -> str:
+    """Return a clean bounded session/request identifier or empty string."""
+    if not isinstance(value, str):
+        return ""
+    cleaned = value.strip()
+    if not cleaned or len(cleaned) > max_len or any(ch.isspace() or ord(ch) < 32 for ch in cleaned):
+        return ""
+    return cleaned
+
+
+def _extract_opencode_identities(events_raw: Sequence[Mapping[str, Any]]) -> tuple[str, list[str]]:
+    """Extract gateway-correlatable OpenCode sessionID and request IDs from JSON events."""
+    session_id = ""
+    request_ids: list[str] = []
+    seen_rids: set[str] = set()
+    for event in events_raw:
+        if not isinstance(event, Mapping):
+            continue
+        containers: list[Mapping[str, Any]] = [event]
+        for nested_key in ("part", "info", "properties"):
+            nested = event.get(nested_key)
+            if isinstance(nested, Mapping):
+                containers.append(nested)
+        for container in containers:
+            if not session_id:
+                for key in ("sessionID", "session_id"):
+                    cand = _safe_opencode_identity(container.get(key))
+                    if cand:
+                        session_id = cand
+                        break
+            for key in ("request_id", "requestID", "rid"):
+                rid = _safe_opencode_identity(container.get(key))
+                if rid and rid not in seen_rids and len(request_ids) < 32:
+                    seen_rids.add(rid)
+                    request_ids.append(rid)
+    return session_id, request_ids
 
 
 def _usage_candidate(

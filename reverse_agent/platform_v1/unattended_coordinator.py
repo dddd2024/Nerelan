@@ -131,9 +131,12 @@ class UnattendedCoordinator:
         quota_wait_target: str | None = None,
         landing_loop=None, publication=None, goals=None,
         disk_guard: Any | None = None,
+        usage_reconciler: Callable[[Any], Any] | None = None,
     ) -> None:
         # check() -> {"hold": bool, ...}; on hold no task is started (nearly full disk).
         self.disk_guard = disk_guard
+        # Optional positive-identity usage reconciler invoked before claim finalization (#1531).
+        self.usage_reconciler = usage_reconciler
         # goal_id -> escalations; hands FAILED agent_team tasks to stronger agents.
         self.landing_loop = landing_loop
         self.publication = publication
@@ -968,6 +971,11 @@ class UnattendedCoordinator:
                             self._last_error = "attempt_timing_unavailable"
                             _logger.warning("attempt_timing_unavailable task=%s epoch=%s", task_id, epoch)
                 final = self.store.get_task(task_id)
+                if self.usage_reconciler is not None:
+                    try:
+                        self.usage_reconciler(final)
+                    except Exception:  # noqa: BLE001 - best-effort settlement reconciliation
+                        _logger.warning("usage_reconciler failed for task=%s", task_id, exc_info=True)
                 success = bool(getattr(outcome, "success", True)) and final.status in {
                     "READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"
                 }

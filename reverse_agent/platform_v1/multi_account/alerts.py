@@ -83,6 +83,16 @@ def _pool_alerts(pool: Mapping[str, Any], config: MultiAccountConfig) -> Iterabl
             yield Alert("account_exhausted", INFO, ref, f"{name} 额度已用尽")
 
 
+_EXHAUSTION_STOP_REASONS = frozenset({
+    "window_token_budget_exhausted",
+    "window_cost_budget_exhausted",
+    "window_task_budget_exhausted",
+    "usage_unknown_budget_reached",
+    "usage_unknown",
+    "usage_budget_reached",
+})
+
+
 def _budget_alerts(budget: Mapping[str, Any], config: MultiAccountConfig) -> Iterable[Alert]:
     for label, name, unit in (("成本", "cost", "cost_micro_units"), ("Token", "token", "token_units")):
         limit = budget.get(f"max_{unit}")
@@ -94,6 +104,15 @@ def _budget_alerts(budget: Mapping[str, Any], config: MultiAccountConfig) -> Ite
         elif remaining / limit < config.alert_budget_warn_ratio:
             yield Alert("window_budget_low", WARNING, name,
                         f"{label}预算剩余 {remaining / limit:.0%}")
+    stop_reason = str(budget.get("stop_reason") or "").strip()
+    if stop_reason in _EXHAUSTION_STOP_REASONS:
+        yield Alert("window_budget_exhausted", CRITICAL, "window", f"自治窗口因预算或未知用量限制停止：{stop_reason}")
+    unknown_count = budget.get("unknown_observation_count")
+    has_cap = any(isinstance(budget.get(f"max_{unit}"), (int, float)) and budget.get(f"max_{unit}") > 0
+                  for unit in ("cost_micro_units", "token_units"))
+    if isinstance(unknown_count, int) and unknown_count > 0 and (has_cap or unknown_count >= 3):
+        yield Alert("window_unknown_usage", WARNING, "window",
+                    f"窗口存在 {unknown_count} 条未测量（UNKNOWN/PARTIAL）用量结算")
 
 
 def _runtime_alerts(runtime: Mapping[str, Any], config: MultiAccountConfig,
@@ -122,7 +141,19 @@ def _runtime_alerts(runtime: Mapping[str, Any], config: MultiAccountConfig,
                         "自治窗口将在一小时内到期，且未配置续期")
 
 
-def _health_audit_alerts(health_audit: Optional[Mapping[str, Any]]) -> Iterable[Alert]:
+def _health_audit_alerts(
+    health_audit: Optional[Mapping[str, Any]],
+    *,
+    stale: bool = False,
+    age_seconds: Optional[float] = None,
+) -> Iterable[Alert]:
+    if stale and isinstance(health_audit, Mapping):
+        yield Alert(
+            "health_audit_stale",
+            WARNING,
+            "platform",
+            f"健康巡检数据已过期（{int(age_seconds or 0)} 秒未刷新）",
+        )
     if not isinstance(health_audit, Mapping):
         return
     for inv in health_audit.get("invariants") or ():
@@ -142,12 +173,18 @@ def _health_audit_alerts(health_audit: Optional[Mapping[str, Any]]) -> Iterable[
 def evaluate_alerts(pool: Mapping[str, Any], runtime: Mapping[str, Any],
                     config: MultiAccountConfig, *, now: float,
                     stalled_seconds: Optional[float] = None,
-                    health_audit: Optional[Mapping[str, Any]] = None) -> list[Alert]:
+                    health_audit: Optional[Mapping[str, Any]] = None,
+                    health_audit_stale: bool = False,
+                    health_audit_age_seconds: Optional[float] = None) -> list[Alert]:
     """Pure rule evaluation: the same inputs always yield the same alerts."""
     alerts = list(_pool_alerts(pool, config))
     alerts.extend(_budget_alerts(runtime.get("budget") or {}, config))
     alerts.extend(_runtime_alerts(runtime, config, now, stalled_seconds))
-    alerts.extend(_health_audit_alerts(health_audit))
+    alerts.extend(_health_audit_alerts(
+        health_audit,
+        stale=health_audit_stale,
+        age_seconds=health_audit_age_seconds,
+    ))
     unique = {alert.key: alert for alert in alerts}
     return sorted(unique.values(), key=lambda a: (_SEVERITY_ORDER[a.severity], a.code, a.subject))
 
