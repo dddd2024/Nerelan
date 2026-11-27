@@ -293,16 +293,26 @@ def _task_holds(db, *, now: float, retention_days: float) -> dict[str, str] | No
         columns = [c[0] for c in tasks.description]
         rows = {row["id"]: row for row in (dict(zip(columns, values)) for values in tasks)}
         goals = []
+        pub_tasks: set[str] = set()
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='platform_publications'").fetchone():
+            pub_tasks = {
+                str(r[0]) for r in conn.execute("SELECT DISTINCT task_id FROM platform_publications WHERE task_id != ''").fetchall()
+            }
         if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='platform_goals'").fetchone():
+            esc_cols = {r[1] for r in conn.execute("PRAGMA table_info(platform_task_escalations)").fetchall()}
+            to_expr = "e.to_task_id" if "to_task_id" in esc_cols else "''"
             goals = conn.execute(
                 "SELECT l.task_id, g.status, EXISTS(SELECT 1 FROM platform_autonomous_windows w "
                 "WHERE w.id = g.window_id AND w.status = 'ACTIVE'), "
                 "EXISTS(SELECT 1 FROM platform_landing_state s WHERE s.goal_id = g.id AND s.phase = 'COMPLETE'), "
                 "EXISTS(SELECT 1 FROM platform_landing_state s WHERE s.goal_id = g.id "
-                "AND s.phase NOT IN ('COMPLETE', 'SUPERSEDED')) "
-                # An escalation moves the link on, but a repair still reads the attempt it came from.
-                "FROM (SELECT goal_id, task_id FROM platform_goal_task_links "
-                "UNION SELECT goal_id, from_task_id FROM platform_task_escalations) l "
+                "AND s.phase NOT IN ('COMPLETE', 'SUPERSEDED')), "
+                "l.is_esc, l.to_task_id "
+                # Keep active goal links as before, while only holding superseded escalation
+                # ancestors that may still feed repairs/publication/landing.
+                "FROM (SELECT goal_id, task_id, 0 AS is_esc, '' AS to_task_id FROM platform_goal_task_links "
+                f"UNION ALL SELECT e.goal_id, e.from_task_id, 1 AS is_esc, COALESCE({to_expr}, '') AS to_task_id "
+                "FROM platform_task_escalations e) l "
                 "JOIN platform_goals g ON g.id = l.goal_id").fetchall()
     except (sqlite3.Error, OSError, ValueError, KeyError):
         return None
@@ -314,10 +324,21 @@ def _task_holds(db, *, now: float, retention_days: float) -> dict[str, str] | No
         finished_at = _parse_utc(row.get("updated_at"))
         if "updated_at" in row and (finished_at is None or now - finished_at < retention_days * 86400):
             holds[task_id] = f"task finished recently; retention {retention_days:g}"
-    for task_id, status, active, landed, landing in goals:
+    for task_id, status, active, landed, landing, is_esc, to_task_id in goals:
         row = rows.get(task_id, {})
         if status in ("SUPERSEDED", "CANCELLED") or (status == "COMPLETED" and landed):
             continue
+        if is_esc:
+            dst_status = rows.get(to_task_id, {}).get("status", "") if to_task_id else ""
+            keep_esc = (
+                row.get("status") in ("READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE")
+                or row.get("status") not in TERMINAL_STATUSES
+                or row.get("failure_classification") == "model_review_rejected"
+                or task_id in pub_tasks
+                or (bool(to_task_id) and dst_status not in TERMINAL_STATUSES)
+            )
+            if not keep_esc:
+                continue
         if active or landing or (status != "COMPLETED" and (
                 row.get("status") not in ("FAILED", "CANCELLED")
                 or row.get("failure_classification") == "model_review_rejected")):

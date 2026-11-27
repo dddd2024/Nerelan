@@ -371,6 +371,9 @@ def _state_digest(value: Any) -> str:
     return _safe_digest(json.dumps(value, sort_keys=True), "state-")
 
 
+MAX_CONSECUTIVE_IDENTICAL_TOOL_CALLS = 5
+
+
 def _part_progress(part: Mapping[str, Any]) -> tuple[str, str] | None:
     part_type = part.get("type")
     if part_type not in {"text", "reasoning", "tool"}:
@@ -382,6 +385,31 @@ def _part_progress(part: Mapping[str, Any]) -> tuple[str, str] | None:
         raw_id = part.get("part_id")
     identity = raw_id if isinstance(raw_id, str) and raw_id else _state_digest(part)
     return _safe_digest(identity, "part-"), _state_digest(part)
+
+
+def _completed_tool_signature(part: Mapping[str, Any]) -> tuple[str, str] | None:
+    """Return ``(part_key, call_signature)`` for a completed/errored tool part, or None."""
+    if part.get("type") != "tool":
+        return None
+    state = part.get("state")
+    if not isinstance(state, Mapping):
+        return None
+    status = str(state.get("status") or "").lower()
+    if status not in {"completed", "error"}:
+        return None
+    tool_name = part.get("tool") or part.get("name")
+    if not isinstance(tool_name, str) or not tool_name.strip():
+        return None
+    raw_id = part.get("id") or part.get("partID") or part.get("part_id") or part.get("callID")
+    part_key = _safe_digest(str(raw_id), "tool-") if isinstance(raw_id, str) and raw_id else _state_digest(part)
+    sig = _state_digest({
+        "tool": tool_name,
+        "status": status,
+        "input": state.get("input"),
+        "output": state.get("output") if status == "completed" else "",
+        "error": state.get("error") if status == "error" else "",
+    })
+    return part_key, sig
 
 
 def _message_progress(info: Mapping[str, Any], completed: Mapping[str, Any]) -> tuple[str, str]:
@@ -688,6 +716,9 @@ class OpenCodeServerClient:
             progress_deadline = time.monotonic() + self.idle_timeout
             progress = _ProgressFilter()
             seen_messages: dict[str, str] = {}
+            seen_tool_parts: set[str] = set()
+            last_tool_sig = ""
+            repeat_tool_count = 0
             while True:
                 event = self._read_sse_event(stream, min(deadline, progress_deadline))
                 event_type = event.get("type")
@@ -707,6 +738,27 @@ class OpenCodeServerClient:
                     update = _part_progress(part)
                     if update is not None and progress.remember(*update):
                         progress_deadline = now + self.idle_timeout
+                    tool_sig = _completed_tool_signature(part)
+                    if tool_sig is not None:
+                        tool_key, sig = tool_sig
+                        if tool_key not in seen_tool_parts:
+                            seen_tool_parts.add(tool_key)
+                            if sig == last_tool_sig:
+                                repeat_tool_count += 1
+                            else:
+                                last_tool_sig = sig
+                                repeat_tool_count = 1
+                            if repeat_tool_count >= MAX_CONSECUTIVE_IDENTICAL_TOOL_CALLS:
+                                confirmed = self._abort_stream_confirmed(directory=directory, session_id=session_id)
+                                return ServerTransportResult(
+                                    success=False,
+                                    failure_classification="executor_tool_loop",
+                                    abort_state="STREAM_ABORT_CONFIRMED" if confirmed else "STREAM_ABORT_UNKNOWN",
+                                    server_version=version,
+                                    session_digest=_safe_digest(session_id, "session-"),
+                                    usage_event_count=usage_count,
+                                    session_id=session_id,
+                                )
                 if event_type == "message.updated":
                     info = properties.get("info")
                     if not isinstance(info, Mapping):

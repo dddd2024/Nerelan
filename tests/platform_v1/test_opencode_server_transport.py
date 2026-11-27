@@ -1144,3 +1144,44 @@ def test_routing_availability_caches_no_credits_on_provider_no_credits(tmp_path)
     )
     assert result["state"] == "UNAVAILABLE"
     assert result["reason"] == "no_credits"
+
+
+def test_consecutive_identical_tool_calls_abort_with_executor_tool_loop(monkeypatch):
+    chunks = [(0, _event("server.connected"))]
+    for i in range(5):
+        chunks.append((1, _event("message.part.updated", {
+            "part": {
+                "id": f"part-{i}",
+                "sessionID": "session-exact",
+                "type": "tool",
+                "tool": "read",
+                "state": {"status": "completed", "input": {"path": "same.py"}, "output": "identical"},
+            }
+        })))
+    run, stream, calls, clock = _timed_role(monkeypatch, chunks, abort_result=True)
+    result = run()
+    assert not result.success
+    assert result.failure_classification == "executor_tool_loop"
+    assert result.abort_state == "STREAM_ABORT_CONFIRMED"
+    assert len(calls) == 1 and calls[0]["session_id"] == "session-exact"
+    assert stream.closed
+    assert clock[0] == 5
+
+
+def test_varied_tool_calls_do_not_trigger_executor_tool_loop(monkeypatch):
+    chunks = [(0, _event("server.connected"))]
+    for i in range(6):
+        chunks.append((1, _event("message.part.updated", {
+            "part": {
+                "id": f"part-{i}",
+                "sessionID": "session-exact",
+                "type": "tool",
+                "tool": "read",
+                "state": {"status": "completed", "input": {"path": f"file-{i % 2}.py"}},
+            }
+        })))
+    chunks.append((1, _event("session.idle", {"sessionID": "session-exact"})))
+    run, _, calls, _ = _timed_role(monkeypatch, chunks)
+    result = run()
+    assert result.success
+    assert calls == []

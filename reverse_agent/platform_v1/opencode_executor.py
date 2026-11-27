@@ -476,6 +476,7 @@ def build_binding_config_content(
                 output_limit = max(1, context_limit // 2)
         model_config = {"limit": {"context": context_limit, "output": output_limit}}
     payload = {
+        "compaction": {"auto": True, "prune": True},
         "provider": {
             provider_key: {
                 "npm": "@ai-sdk/openai" if resolution.native_endpoint == "/responses" else _TRANSIENT_PROVIDER_NPM,
