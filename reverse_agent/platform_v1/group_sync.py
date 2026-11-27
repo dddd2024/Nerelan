@@ -60,27 +60,43 @@ def _is_healthy_provider_accounts(
     accounts: Sequence[Mapping[str, Any]],
     *,
     provider: str = "",
-) -> tuple[bool, str, float | None]:
-    """Fail-closed provider health from /v1/magpie/quotas entries (missing != healthy)."""
+    verified_providers: set[str] | frozenset[str] = frozenset(),
+    provider_telemetry: Mapping[str, float] | None = None,
+) -> tuple[bool, str, float | None, str]:
+    """Fail-closed provider health separating unknown/unverified vs confirmed unavailable.
+
+    Returns ``(healthy, reason, headroom, classification)`` where classification is one of
+    ``"healthy"``, ``"unknown_unverified"``, or ``"confirmed_unavailable"``.
+    """
+    prov_key = str(provider or "").strip().lower()
+    unmetered_free = _is_unmetered_free_provider(prov_key)
+    tel = provider_telemetry or {}
+    tel_verified = float(tel.get("requests") or 0) >= 2 and float(tel.get("success_rate") or 0) >= 0.8
     if not accounts:
-        if _is_unmetered_free_provider(provider):
-            return True, "unmetered_free", None
-        return False, "unknown_quota:no_quota_row", None
+        if unmetered_free:
+            return True, "unmetered_free", None, "healthy"
+        return False, "unknown_quota:no_quota_row", None, "unknown_unverified"
     any_usable = False
     best_headroom: float | None = None
-    reasons: list[str] = []
+    confirmed_reasons: list[str] = []
+    unknown_reasons: list[str] = []
     for account in accounts:
         err = account.get("error") or account.get("reason")
         state = str(account.get("state") or account.get("status") or "").upper()
+        if unmetered_free and state == "UNKNOWN" and str(err or "") == "missing_windows" and not account.get("error"):
+            if prov_key in verified_providers or tel_verified:
+                return True, "unmetered_free_verified", None, "healthy"
+            unknown_reasons.append("unknown_quota:missing_windows_unverified")
+            continue
         if err:
-            reasons.append(f"error:{err}")
+            confirmed_reasons.append(f"error:{err}")
             continue
         if state != "FRESH":
-            reasons.append(f"unknown_quota:{state.lower() or 'missing_state'}")
+            unknown_reasons.append(f"unknown_quota:{state.lower() or 'missing_state'}")
             continue
         windows = account.get("windows") or ()
-        if not windows and not _is_unmetered_free_provider(provider):
-            reasons.append("unknown_quota:empty_windows")
+        if not windows and not unmetered_free:
+            unknown_reasons.append("unknown_quota:empty_windows")
             continue
         exhausted_window = False
         numeric_windows = 0
@@ -106,17 +122,21 @@ def _is_healthy_provider_accounts(
                 exhausted_window = True
                 break
         if exhausted_window:
-            reasons.append("quota_exhausted")
+            confirmed_reasons.append("quota_exhausted")
             continue
-        if numeric_windows == 0 and not _is_unmetered_free_provider(provider):
-            reasons.append("unknown_quota:no_numeric_window")
+        if numeric_windows == 0 and not unmetered_free:
+            unknown_reasons.append("unknown_quota:no_numeric_window")
             continue
         any_usable = True
         if min_remaining is not None:
             best_headroom = min_remaining if best_headroom is None else max(best_headroom, min_remaining)
     if any_usable:
-        return True, "healthy", best_headroom
-    return False, reasons[0] if reasons else "unhealthy", None
+        return True, "healthy", best_headroom, "healthy"
+    if confirmed_reasons:
+        return False, confirmed_reasons[0], None, "confirmed_unavailable"
+    if unknown_reasons:
+        return False, unknown_reasons[0], None, "unknown_unverified"
+    return False, "unhealthy", None, "confirmed_unavailable"
 
 
 def _telemetry_by_member(usage_rows: Iterable[Mapping[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -189,6 +209,7 @@ def plan_group_sync(
     *,
     paid_subscriptions: Mapping[str, Any] | None = None,
     compliance_excluded: Iterable[str] | None = None,
+    verified_providers: Iterable[str] | None = None,
     existing_groups: Mapping[str, Any] | None = None,
     min_providers: int = 2,
 ) -> dict[str, Any]:
@@ -205,18 +226,32 @@ def plan_group_sync(
     )
     paid_providers = _paid_provider_names(paid_subscriptions)
     compliance_providers = _compliance_provider_names(compliance_excluded)
+    verified_set = frozenset(str(p).strip().lower() for p in (verified_providers or ()) if isinstance(p, str) and p.strip())
     by_provider_quotas: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
     for item in raw_quotas:
         if isinstance(item, Mapping) and isinstance(item.get("provider"), str) and item["provider"].strip():
             by_provider_quotas[item["provider"].strip().lower()].append(item)
 
-    provider_health: dict[str, tuple[bool, str, float | None]] = {}
+    provider_health: dict[str, tuple[bool, str, float | None, str]] = {}
     telemetry = _telemetry_by_member(usage_rows)
+    provider_tel: dict[str, dict[str, float]] = {}
+    for member_id, stats in telemetry.items():
+        prov = member_id.split("/", 1)[0].lower()
+        pstats = provider_tel.setdefault(prov, {"requests": 0.0, "ok": 0.0})
+        req = float(stats.get("requests") or 0.0)
+        sr = stats.get("success_rate")
+        pstats["requests"] += req
+        if isinstance(sr, (int, float)):
+            pstats["ok"] += req * float(sr)
+    for prov, pstats in provider_tel.items():
+        pstats["success_rate"] = (pstats["ok"] / pstats["requests"]) if pstats["requests"] > 0 else 0.0
 
     grouped_candidates: dict[str, list[str]] = defaultdict(list)
     excluded_paid: list[str] = []
     excluded_compliance: list[str] = []
     excluded_meta: list[str] = []
+    excluded_unknown: list[dict[str, str]] = []
+    excluded_confirmed: list[dict[str, str]] = []
     excluded_unhealthy: list[dict[str, str]] = []
 
     seen_ids: set[str] = set()
@@ -247,10 +282,17 @@ def plan_group_sync(
             provider_health[provider] = _is_healthy_provider_accounts(
                 by_provider_quotas.get(provider, ()),
                 provider=provider,
+                verified_providers=verified_set,
+                provider_telemetry=provider_tel.get(provider),
             )
-        healthy, health_reason, _ = provider_health[provider]
+        healthy, health_reason, _, health_class = provider_health[provider]
         if not healthy:
-            excluded_unhealthy.append({"member": model_id, "reason": health_reason})
+            entry = {"member": model_id, "reason": health_reason}
+            excluded_unhealthy.append(entry)
+            if health_class == "unknown_unverified":
+                excluded_unknown.append(entry)
+            else:
+                excluded_confirmed.append(entry)
             continue
         if identity:
             grouped_candidates[identity].append(model_id)
@@ -266,7 +308,7 @@ def plan_group_sync(
         def sort_key(member_id: str) -> tuple[float, str]:
             t = telemetry.get(member_id.lower(), {})
             prov = member_id.split("/", 1)[0].lower()
-            _, _, headroom = provider_health.get(prov, (False, "", None))
+            _, _, headroom, _ = provider_health.get(prov, (False, "", None, ""))
             sr = t.get("success_rate")
             rel_penalty = (1.0 - float(sr)) * 2.5 if isinstance(sr, (int, float)) else 0.35
             cp1m = t.get("credits_per_1m")
@@ -301,6 +343,8 @@ def plan_group_sync(
             "excluded_paid_subscription": sorted(excluded_paid),
             "excluded_compliance": sorted(excluded_compliance),
             "excluded_meta_models": sorted(excluded_meta),
+            "unknown_unverified": excluded_unknown,
+            "confirmed_unavailable": excluded_confirmed,
             "removed_unhealthy": excluded_unhealthy,
         },
     }
@@ -340,6 +384,7 @@ def run_group_sync(
         usage_rows,
         paid_subscriptions=owner.get("paid_subscriptions"),
         compliance_excluded=owner.get("compliance_excluded_providers"),
+        verified_providers=owner.get("verified_providers"),
         existing_groups=owner.get("groups"),
     )
 

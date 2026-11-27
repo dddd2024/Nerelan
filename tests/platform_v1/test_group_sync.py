@@ -253,3 +253,50 @@ def test_group_sync_filters_meta_models_compliance_and_avoids_cache_only_ranking
                       {"provider": "workbuddy", "state": "FRESH", "windows": [{"name": "Credits", "remaining_percent": 50.0}]}]},
     )
     assert default_res["diff"]["excluded_compliance"] == []
+
+
+def test_group_sync_separates_unknown_unverified_from_confirmed_unavailable_and_promotes_verified_free() -> None:
+    models_payload = {
+        "object": "list",
+        "data": [
+            {"id": "opencode-zen-free/glm-5.3"},
+            {"id": "zcode/glm-5.3"},
+            {"id": "workbuddy-ai/glm-5.3"},
+            {"id": "raccoon/glm-5.3"},
+            {"id": "minimax-code/glm-5.3"},
+        ],
+    }
+    quotas_snapshot = {
+        "accounts": [
+            {"provider": "opencode-zen-free", "state": "UNKNOWN", "reason": "missing_windows", "windows": []},
+            {"provider": "zcode", "state": "UNKNOWN", "error": "quota_error", "windows": []},
+            {"provider": "workbuddy-ai", "state": "FRESH", "windows": [{"name": "Credits", "remaining_percent": 0}]},
+            {"provider": "raccoon", "state": "FRESH", "windows": [{"name": "Daily", "remaining_percent": 80}]},
+            {"provider": "minimax-code", "state": "FRESH", "windows": [{"name": "Credits", "remaining_percent": 50}]},
+        ]
+    }
+    # Without telemetry or explicit verification, opencode-zen-free missing_windows is unknown_unverified, not confirmed_unavailable.
+    unverified = plan_group_sync(models_payload, quotas_snapshot, [])
+    assert unverified["diff"]["unknown_unverified"] == [
+        {"member": "opencode-zen-free/glm-5.3", "reason": "unknown_quota:missing_windows_unverified"}
+    ]
+    assert unverified["diff"]["confirmed_unavailable"] == [
+        {"member": "zcode/glm-5.3", "reason": "error:quota_error"},
+        {"member": "workbuddy-ai/glm-5.3", "reason": "quota_exhausted"},
+    ]
+    assert "opencode-zen-free/glm-5.3" not in unverified["groups"]["group/nerelan-glm-5-3"]["members"]
+
+    # Verified via explicit provider allowlist OR healthy recent telemetry promotes unmetered free back into group members.
+    by_allowlist = plan_group_sync(
+        models_payload, quotas_snapshot, [], verified_providers=["opencode-zen-free"]
+    )
+    assert by_allowlist["diff"]["unknown_unverified"] == []
+    assert by_allowlist["groups"]["group/nerelan-glm-5-3"]["members"][0] == "opencode-zen-free/glm-5.3"
+
+    telemetry_rows = [
+        {"served_model": "opencode-zen-free/glm-5.3", "status": 200, "rejected": False, "tokens": {"input": 100}},
+        {"served_model": "opencode-zen-free/glm-5.3", "status": 200, "rejected": False, "tokens": {"input": 100}},
+    ]
+    by_telemetry = plan_group_sync(models_payload, quotas_snapshot, telemetry_rows)
+    assert by_telemetry["diff"]["unknown_unverified"] == []
+    assert by_telemetry["groups"]["group/nerelan-glm-5-3"]["members"][0] == "opencode-zen-free/glm-5.3"
