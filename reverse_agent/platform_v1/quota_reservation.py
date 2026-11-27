@@ -329,14 +329,25 @@ def admission(evidence, need, outstanding=(), *, now=None, freshness=600,
             "uncertain": uncertain or any(r is None for _, r in waits)}
 
 
-def settlement(observations, estimate, *, usage_unknown):
+def settlement(observations, estimate, *, usage_unknown, confirmed_zero=False):
     """Reproducible measured counters; conversion uses the admission's frozen rates.
 
     A price-derived percentage is still an estimate, never provider attribution.
     Unknown percentage spend therefore remains held across provider refreshes.
+    When ``confirmed_zero`` is True with zero observations and known usage
+    (e.g. a pre-dispatch refusal before any model call), settle at confirmed $0
+    and 0 window percent so refused attempts release account quota headroom.
     """
     fields = {"input": "input_units", "cache_read": "cache_read_units", "cache_write": "cache_write_units",
               "output": "output_units", "reasoning": "reasoning_units"}
+    if confirmed_zero and not observations and not usage_unknown:
+        counters = {name: 0 for name in fields}
+        window_keys = list((estimate.get("calibration") or estimate.get("windows") or {}).keys())
+        actual = {name: 0.0 for name in window_keys}
+        return {"state": "ESTIMATED" if actual else "UNKNOWN",
+                "tokens": counters, "turn_count": 0, "cost_units": 0.0, "price_units": 0.0,
+                "cost_basis": "confirmed_zero", "actual_windows": actual,
+                "observation_ids": [], "actual_observations": [], "estimate": estimate}
     counters = {name: (sum(o[field] for o in observations) if observations and
                 all(o.get(field) is not None and o["status"] in {"OBSERVED", "PARTIAL"} for o in observations) else None)
                 for name, field in fields.items()}

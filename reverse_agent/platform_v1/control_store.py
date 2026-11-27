@@ -3081,7 +3081,8 @@ class PlatformControlStore:
                 from . import quota_reservation
                 settlement = quota_reservation.settlement(
                     [dict(o) for o in observations], json.loads(reservation["estimate_json"]),
-                    usage_unknown=usage_unknown)
+                    usage_unknown=usage_unknown,
+                    confirmed_zero=bool(not observations and (pre_dispatch_zero or host_zero)))
                 settlement["limit_cutoff"] = any(word in (task["failure_classification"] + ":" + receipt_result)
                     for word in ("usage_limit", "rate_limit", "budget_exhausted", "usage_budget", "provider_exhaustion"))
                 if attempt_elapsed_seconds is not None:

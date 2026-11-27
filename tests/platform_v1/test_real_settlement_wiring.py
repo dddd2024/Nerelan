@@ -240,3 +240,224 @@ def test_pool_monitor_alerts_on_exhausted_stop_reason_and_unknown_usage() -> Non
     keys = {(a.code, a.subject) for a in alerts}
     assert ("window_budget_exhausted", "window") in keys
     assert ("window_unknown_usage", "window") in keys
+
+
+def test_incomplete_gateway_coverage_does_not_supersede_local_usage(tmp_path: Path) -> None:
+    store = TaskStore(tmp_path / "incomplete.sqlite3")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    win = _budget_window(autonomy, policy_id="incomplete-cov", max_tokens=100_000, reservation=50_000)
+
+    task = store.create_task(title="partial-scan", executor_kind="opencode", binding_ref="magpie-wb")
+    epoch, _ = control.claim_task(window_id=win.id, task_id=task.id, owner="o", lease_ms=60_000)
+    store.add_event(task.id, event_type="EXECUTOR_COMPLETED", title="done", description="ok", metadata={"agent_session_id": "sess-inc"})
+    store.append_usage_observation(
+        task.id,
+        observation_id="local-partial-keep",
+        execution_id=task.execution_id,
+        role="executor",
+        model_id="workbuddy/kimi-k3.1-pro",
+        provider_id="magpie",
+        source_kind="step_finish",
+        source_id="local-inc",
+        status="PARTIAL",
+        input_units=5000,
+        output_units=100,
+        reasoning_units=None,
+        cache_read_units=None,
+        cache_write_units=None,
+        cost_micro_units=None,
+    )
+
+    partial_payload = {
+        "status": "ok",
+        "reason": None,
+        "complete": False,
+        "reached_cap": True,
+        "rows": [_magpie_row(rid="rid-subset", session="sess-inc", cost=0.01, priced=True)],
+    }
+    res = reconcile_task_usage_from_magpie(
+        store,
+        store.get_task(task.id),
+        usage_fetcher=lambda **_: partial_payload,
+    )
+    assert res == {"status": "incomplete", "reason": "incomplete_gateway_coverage"}
+
+    rows = store._conn.execute(
+        "SELECT source_kind FROM task_usage_observations WHERE task_id = ?",
+        (task.id,),
+    ).fetchall()
+    assert [r["source_kind"] for r in rows] == ["step_finish"]
+
+    control.complete_task_claim(window_id=win.id, task_id=task.id, owner="o", epoch=epoch, result="terminal:FAILED")
+    res_row = store._conn.execute(
+        "SELECT state FROM platform_budget_reservations WHERE task_id = ?",
+        (task.id,),
+    ).fetchone()
+    assert res_row["state"] == "UNKNOWN"
+    store._conn.close()
+
+
+def test_pre_dispatch_refusal_propagates_confirmed_zero_to_quota_settlement(tmp_path: Path) -> None:
+    from reverse_agent.platform_v1 import quota_reservation
+
+    store = TaskStore(tmp_path / "quota-zero.sqlite3")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    now = datetime.now(timezone.utc)
+    policy = {
+        "policy_id": "owner-quota-zero",
+        "policy_revision": 1,
+        "owner_identity": "owner@example",
+        "starts_at": (now - timedelta(seconds=5)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/Nerelan"],
+        "capabilities": ["execute_task"],
+        "max_tasks": 12,
+        "max_token_units": 80_000_000,
+        "per_task_token_reservation": 6_600_000,
+        "confirmation": "ACTIVATE",
+    }
+    autonomy.activate(policy)
+    win = control.active_window()
+    assert win is not None
+
+    task = store.create_task(title="refused-quota", repository="dddd2024/Nerelan", executor_kind="codex", binding_ref="chatgpt-gpt")
+    estimate = {
+        "account_ref": "acct-codex-1",
+        "estimate": {"model": "openai-codex/gpt-5.3-codex", "cost_p80": 0.5},
+        "calibration": {"five_hour": 0.01, "weekly": 0.002},
+        "windows": {"five_hour": 10.0, "weekly": 5.0},
+    }
+    epoch, _ = control.claim_task(
+        window_id=win.id,
+        task_id=task.id,
+        owner="o",
+        lease_ms=60_000,
+    )
+    store._conn.execute(
+        "UPDATE platform_budget_reservations SET account_ref = ?, binding_ref = ?, "
+        "quota_windows_json = ?, quota_state = ?, estimate_json = ? "
+        "WHERE task_id = ? AND claim_epoch = ?",
+        (
+            "acct-codex-1",
+            "chatgpt-gpt",
+            json.dumps({"five_hour": 10.0, "weekly": 5.0}),
+            "OBSERVED",
+            json.dumps(estimate),
+            task.id,
+            epoch,
+        ),
+    )
+    store._conn.commit()
+    store.classify_failure(task.id, classification="review_not_independent", detail="review_not_independent")
+    control.complete_task_claim(window_id=win.id, task_id=task.id, owner="o", epoch=epoch, result="terminal:FAILED")
+
+    row = store._conn.execute(
+        "SELECT state, quota_state, observed_token_units, settlement_json FROM platform_budget_reservations WHERE task_id = ?",
+        (task.id,),
+    ).fetchone()
+    assert (row["state"], row["quota_state"], row["observed_token_units"]) == ("RECONCILED", "ESTIMATED", 0)
+    settled = json.loads(row["settlement_json"])
+    assert settled["cost_basis"] == "confirmed_zero"
+    assert settled["cost_units"] == 0.0
+    assert settled["actual_windows"] == {"five_hour": 0.0, "weekly": 0.0}
+
+    # Finalized confirmed-zero reservation must charge 0 headroom in quota_reservation.admission().
+    obs_ts = (now + timedelta(minutes=1)).isoformat()
+    evidence = {
+        "account_ref": "acct-codex-1",
+        "source": "magpie",
+        "observed_at": obs_ts,
+        "windows": [
+            {"window": "five_hour", "used_percent": 20.0, "resets_at": (now + timedelta(hours=3)).isoformat()},
+            {"window": "weekly", "used_percent": 10.0, "resets_at": (now + timedelta(days=5)).isoformat()},
+        ],
+    }
+    need = {"windows": {"five_hour": {"p80": 68.0}, "weekly": {"p80": 5.0}}}
+    outstanding = [{
+        "account_ref": "acct-codex-1",
+        "state": row["state"],
+        "quota_state": row["quota_state"],
+        "reconciled_at": now.isoformat(),
+        "quota_windows": {"five_hour": 10.0, "weekly": 5.0},
+        "actual_windows": settled["actual_windows"],
+        "actual_observations": settled["actual_observations"],
+    }]
+    # With buffer=10 and used=20, 68 + 0 <= 70 fits ONLY if finalized refusal charges 0 instead of reserved 10.
+    decision = quota_reservation.admission(evidence, need, outstanding, now=now.timestamp() + 120)
+    assert decision["decision"] == "ok"
+    store._conn.close()
+
+
+def test_opencode_identities_enable_magpie_reconciliation_without_manual_events(tmp_path: Path, monkeypatch) -> None:
+    import reverse_agent.platform_v1.opencode_executor as oc_mod
+    from reverse_agent.platform_v1.opencode_executor import OpenCodeExecutor, RoleContext, _extract_opencode_identities
+    from reverse_agent.platform_v1.opencode_server_transport import ServerTransportResult
+
+    events = [
+        {"type": "step_start", "sessionID": "ses-oc-live-1", "request_id": "rid-oc-1"},
+        {"type": "text", "sessionID": "ses-oc-live-1", "part": {"type": "text", "text": "done"}},
+    ]
+    assert _extract_opencode_identities(events) == ("ses-oc-live-1", ["rid-oc-1"])
+
+    store = TaskStore(tmp_path / "opencode-id.sqlite3")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    win = _budget_window(autonomy, policy_id="oc-id", max_tokens=100_000, reservation=50_000)
+
+    task = store.create_task(title="oc-reconcile", executor_kind="opencode", binding_ref="magpie-wb")
+    epoch, _ = control.claim_task(window_id=win.id, task_id=task.id, owner="o", lease_ms=60_000)
+
+    def _emit_cb(tid: str, ev: dict) -> None:
+        store.add_event(
+            tid,
+            event_type=ev["type"],
+            title=ev.get("title", ""),
+            description=ev.get("description", ""),
+            metadata=ev.get("metadata") or {},
+        )
+
+    monkeypatch.setattr(
+        oc_mod,
+        "run_managed_server_role",
+        lambda **_kwargs: ServerTransportResult(
+            success=False,
+            failure_classification="server_session_error",
+            server_version="1.0.0",
+            session_digest="session-abcd",
+            usage_event_count=1,
+            session_id="ses-oc-srv-9",
+        ),
+    )
+
+    class _StoreProxy:
+        def active_usage_budget_snapshot(self, _tid: str) -> dict:
+            return {"token_units": 0, "cost_micro_units": 0}
+
+    executor = OpenCodeExecutor(model_id="openai-compatible/test")
+    executor._run_server_executor_core(
+        task_id=task.id,
+        store=_StoreProxy(),
+        worktree=tmp_path,
+        execution_id=task.execution_id,
+        cli_path="opencode",
+        is_cmd=False,
+        event_callback=_emit_cb,
+        role_context=RoleContext(role="developer", task_id=task.id, workspace=tmp_path),
+        prompt="hello",
+    )
+
+    res = reconcile_task_usage_from_magpie(
+        store,
+        store.get_task(task.id),
+        usage_fetcher=lambda **_: {
+            "status": "ok",
+            "complete": True,
+            "rows": [_magpie_row(rid="rid-srv-1", session="ses-oc-srv-9", cost=0.02, priced=True)],
+        },
+    )
+    assert res["status"] == "reconciled"
+    assert res["cost_micro_units"] == 20_000
+    control.complete_task_claim(window_id=win.id, task_id=task.id, owner="o", epoch=epoch, result="terminal:FAILED")
+    store._conn.close()

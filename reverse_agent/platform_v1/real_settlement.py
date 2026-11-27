@@ -61,7 +61,8 @@ def task_positive_identities(store: Any, task_id: str) -> tuple[list[str], list[
     seen_rids: set[str] = set()
     rows = store._conn.execute(
         "SELECT metadata FROM task_events WHERE task_id = ? "
-        "AND type IN ('EXECUTOR_COMPLETED', 'EXECUTOR_FINISHED', 'EXECUTOR_RUNNING') "
+        "AND type IN ('EXECUTOR_COMPLETED', 'EXECUTOR_FINISHED', 'EXECUTOR_RUNNING', "
+        "'STREAM_ABORT_CONFIRMED', 'STREAM_ABORT_UNKNOWN') "
         "ORDER BY seq ASC",
         (task_id,),
     ).fetchall()
@@ -73,13 +74,20 @@ def task_positive_identities(store: Any, task_id: str) -> tuple[list[str], list[
         if not isinstance(meta, Mapping):
             continue
         session = meta.get("agent_session_id")
-        if isinstance(session, str) and session and session not in seen_sessions:
-            seen_sessions.add(session)
-            sessions.append(session)
+        if isinstance(session, str):
+            session = session.strip()
+            if session and session not in seen_sessions:
+                seen_sessions.add(session)
+                sessions.append(session)
         raw_rids = meta.get("request_ids") or meta.get("rids") or ()
-        if isinstance(raw_rids, (list, tuple)):
-            for rid in raw_rids:
-                if isinstance(rid, str) and rid and rid not in seen_rids:
+        rid_candidates: list[Any] = list(raw_rids) if isinstance(raw_rids, (list, tuple)) else []
+        for singular_key in ("request_id", "rid"):
+            if singular_key in meta:
+                rid_candidates.append(meta.get(singular_key))
+        for rid in rid_candidates:
+            if isinstance(rid, str):
+                rid = rid.strip()
+                if rid and rid not in seen_rids:
                     seen_rids.add(rid)
                     rids.append(rid)
     return sessions, rids
@@ -93,14 +101,15 @@ def reconcile_task_usage_from_magpie(
     magpie_url: str | None = None,
     usage_rows: Iterable[Mapping[str, Any]] | None = None,
     usage_fetcher: Callable[..., Mapping[str, Any]] | None = None,
+    complete: bool = True,
 ) -> dict[str, Any]:
     """Backfill/reconcile missing, incomplete, or unpriced task usage via Magpie.
 
     Zero network calls when ``REVERSE_AGENT_MAGPIE`` is not ``1`` (unless test
     inputs ``usage_rows`` or ``usage_fetcher`` are supplied directly).
-    Never sums Magpie rows with local observations for the same execution; the
-    resulting ``magpie_measured`` observation supersedes incomplete local rows in
-    :meth:`PlatformControlStore._finalize_task_claim`.
+    Never sums Magpie rows with local observations for the same execution, and
+    never emits a superseding ``magpie_measured`` observation when gateway usage
+    coverage is incomplete (``complete is not True``).
     """
     active_env = env if env is not None else os.environ
     task_id = str(getattr(task, "id", "") or "")
@@ -142,6 +151,8 @@ def reconcile_task_usage_from_magpie(
         return {"status": "skipped", "reason": "no_positive_identity"}
 
     if usage_rows is not None:
+        if complete is not True:
+            return {"status": "incomplete", "reason": "incomplete_gateway_coverage"}
         fetched_rows = list(usage_rows)
     else:
         url = magpie_url or active_env.get("REVERSE_AGENT_MAGPIE_URL", "http://127.0.0.1:3425")
@@ -150,6 +161,8 @@ def reconcile_task_usage_from_magpie(
         if not isinstance(payload, Mapping) or payload.get("status") != "ok":
             reason = payload.get("reason") if isinstance(payload, Mapping) else "fetch_failed"
             return {"status": "unavailable", "reason": str(reason or "fetch_failed")}
+        if payload.get("complete") is not True:
+            return {"status": "incomplete", "reason": "incomplete_gateway_coverage"}
         fetched_rows = list(payload.get("rows") or ())
 
     correlated = correlate_task_usage(local_dicts, fetched_rows, sessions=sessions, rids=rids)
