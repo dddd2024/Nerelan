@@ -3328,6 +3328,17 @@ class PlatformControlStore:
             row = self._conn.execute("SELECT rates_json FROM platform_quota_calibrations WHERE account_ref=?", (account_ref,)).fetchone()
             return json.loads(row[0]) if row else {}
 
+    def quota_calibration_record(self, account_ref: str) -> tuple[dict[str, float], dict[str, Any]]:
+        """Return both persisted calibration rates and evidence metadata."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT rates_json, evidence_json FROM platform_quota_calibrations WHERE account_ref=?",
+                (account_ref,),
+            ).fetchone()
+            if not row:
+                return {}, {}
+            return json.loads(row["rates_json"] or "{}"), json.loads(row["evidence_json"] or "{}")
+
     def account_budget_summary(self, window_id: str) -> dict[str, Any]:
         """Account totals retain NULL actual/error whenever any usage is unresolved."""
         result = {}

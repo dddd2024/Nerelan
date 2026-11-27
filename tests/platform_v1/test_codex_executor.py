@@ -440,3 +440,50 @@ def test_agent_session_id_drives_exact_cost_attribution(repository, tmp_path):
     complete = all_in_economics(economics_runs(correlated), basis="cash")["single"]
     assert complete["cost_per_accepted_all_in"] == 0.25
     assert complete["unpriced_runs"] == 0
+
+
+def test_codex_review_without_stream_model_uses_locked_cli_model_and_records_usage(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1.codex_executor import CodexExecutor
+    from reverse_agent.platform_v1.codex_protocol import CodexJsonl, CodexTurn
+    from reverse_agent.platform_v1.run_store import TaskStore
+
+    parser = CodexJsonl()
+    parser.feed(
+        b'{"type":"thread.started","thread_id":"thr-1"}\n'
+        b'{"type":"turn_context","payload":{"model":"gpt-6.1-sol"}}\n'
+        b'{"type":"turn.started"}\n'
+        b'{"type":"item.completed","item":{"type":"agent_message","text":"{\\"verdict\\":\\"ACCEPT\\",\\"findings\\":[]}"}}\n'
+        b'{"type":"turn.completed","usage":{"input_tokens":1200,"cached_input_tokens":800,"output_tokens":90}}\n'
+    )
+    parsed = parser.finish()
+    assert parsed.models == ["gpt-6.1-sol"]
+
+    # Also test exact codex-cli 0.163 behavior where no model field appears in stream JSON.
+    store = TaskStore(":memory:")
+    task = store.create_task(title="codex-review", executor_kind="codex", binding_ref="chatgpt-gpt", repository="o/r")
+    ws = tmp_path / task.id
+    ws.mkdir()
+    resolution = SimpleNamespace(
+        binding_ref="chatgpt-gpt", connection_id="c1", executor_id="codex",
+        provider_id="codex", model_id="gpt-6.1-sol", auth_method="external_cli_session",
+        relay_required=False, external_session_status="available",
+    )
+    executor = CodexExecutor(binding_resolution=resolution, repo_dir=str(tmp_path), base_ref="a" * 40, sandbox="read-only")
+    monkeypatch.setattr(executor, "_verify_workspace", lambda *a: None)
+    turn_no_model = CodexTurn(
+        thread_id="thr-rev-1",
+        completed=True,
+        final_text='{"verdict":"ACCEPT","findings":[]}',
+        models=[],
+        usage={"input_tokens": 1200, "cached_input_tokens": 800, "output_tokens": 90},
+    )
+    monkeypatch.setattr(executor, "_parser", lambda *a: SimpleNamespace(turn=turn_no_model, finish=lambda: turn_no_model))
+    monkeypatch.setattr(executor, "_stream", lambda *a, **k: 0)
+    prepared = SimpleNamespace(worktree=ws, base_sha="a" * 40, execution_id=task.execution_id, executor_kind="codex", cli_path="codex.exe")
+    out = executor.execute_review_prepared(prepared, store, task_id=task.id, prompt="Review diff")
+    assert out["actual_models"] == ["gpt-6.1-sol"]
+    assert out["request_id"] == "thr-rev-1"
+    obs = store.list_usage_observations(task.id)
+    assert len(obs) == 1 and obs[0].status == "PARTIAL"
+    assert (obs[0].input_units, obs[0].cache_read_units, obs[0].output_units) == (400, 800, 90)
+    store._conn.close()

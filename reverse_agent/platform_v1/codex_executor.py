@@ -471,17 +471,35 @@ class CodexExecutor:
         if code != 0 or turn.failed or turn.tool_launch_failed:
             raise ExecutorRuntimeError("model_review_process_failed")
         self._verify_workspace(prepared.worktree, prepared.base_sha)
-        if not turn.thread_id or not turn.models:
+        if not turn.thread_id:
             raise ExecutorRuntimeError("review_not_independent")
+        # codex-cli 0.163+ `--json` stream omits explicit `model` on turn events
+        # when running under host-locked `--ignore-user-config --model <id> -c model_provider="openai"`
+        # with `.codex/config.toml` absent. Subclasses (like Claude Code) must still report models.
+        actual_models = list(turn.models)
+        if not actual_models:
+            if self.KIND != "codex" or not self._model_id:
+                raise ExecutorRuntimeError("review_not_independent")
+            actual_models = [self._model_id]
         identity = hashlib.sha256((prepared.execution_id + ":" + turn.thread_id).encode()).hexdigest()
+        from .usage_ledger import _native
+        counters = _native(turn.usage, self.KIND) if turn.usage else None
+        usage_metrics = {} if counters is None else {
+            "input_units": counters["input"],
+            "output_units": counters["output"],
+            "cache_read_units": counters["cache_read"],
+            "cache_write_units": counters["cache_write"],
+            "reasoning_units": counters["reasoning"],
+        }
         _persist_usage_observations(store, task_id, [{
             "observation_id": "usage-review-" + hashlib.sha256((identity + model).encode()).hexdigest(),
             "execution_id": prepared.execution_id, "role": "reviewer",
             "model_id": model, "provider_id": self.PROVIDER_ID,
             "source_kind": "assistant_message", "source_id": "review-turn-" + identity,
-            "status": "UNKNOWN",
-        } for model in turn.models])
-        return {"response": turn.final_text, "actual_models": turn.models,
+            "status": "PARTIAL" if counters is not None else "UNKNOWN",
+            **usage_metrics,
+        } for model in actual_models])
+        return {"response": turn.final_text, "actual_models": actual_models,
                 "request_id": turn.thread_id, "execution_id": prepared.execution_id,
                 "binding_ref": self._binding_resolution.binding_ref,
                 "quota_observations": turn.rate_limits}
