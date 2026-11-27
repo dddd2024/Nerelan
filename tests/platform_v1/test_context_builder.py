@@ -380,3 +380,21 @@ def test_context_packet_caps_executor_progress_to_latest_five(tmp_path, repo):
     assert [e["description"] for e in progress_events] == [f"step-{i:02d}" for i in range(15, 20)]
     assert [e["type"] for e in first_events if e["type"] != "EXECUTOR_PROGRESS"] == ["VALIDATED", "EXECUTOR_COMPLETED"]
     store._conn.close()
+
+
+def test_feedback_compression_dedupes_lines_and_reports_saved_bytes():
+    from reverse_agent.platform_v1.context_builder import _compress_feedback_text, build_feedback_section
+
+    repeated = "\n".join(["WARNING: retrying transient stream chunk"] * 40 + ["E   AssertionError: expected 2 == 3"])
+    comp, stats = _compress_feedback_text(repeated, max_chars=400)
+    assert "... (" in comp
+    assert "AssertionError: expected 2 == 3" in comp
+    assert stats["saved_bytes"] > 0 and stats["compressed_bytes"] < stats["raw_bytes"]
+
+    section, sec_stats = build_feedback_section(
+        {"review_task_id": "r1", "findings": [{"path": "a.py", "line": 1, "severity": "high", "message": "x " * 1500}]},
+        {"feedback": repeated},
+        max_chars=500,
+    )
+    assert "Verified review feedback" in section and "Contract fixup feedback" in section
+    assert sec_stats["saved_bytes"] > 0

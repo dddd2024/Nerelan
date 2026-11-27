@@ -535,3 +535,72 @@ def test_verified_evidence_accepts_legacy_unnormalized_findings(review_setup):
     assert model_review.gate_decision(verified["result"]) == "REJECT"
     with pytest.raises(TaskStoreError, match="model_review_rejected"):
         model_review.verified_evidence(store, reloaded, run, require_accept=True)
+
+
+def test_review_round_limit_records_draft_pr_handoff_and_active_issue_dedup(review_setup):
+    import hashlib
+    from reverse_agent.platform_v1.autonomy import AutonomyService, KNOWN_OPERATIONS
+    from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
+    from reverse_agent.platform_v1.goal_service import GoalService
+    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+
+    store, router, producer, consumer, created, options, reviews_dir = review_setup
+    options["response"] = REJECT
+    assert not run_review(review_setup).success
+    options["response"] = ACCEPT
+    prod = store.get_task(producer)
+    goal_id = json.loads(next(r for r in prod.evidence_refs if r["category"] == "ArtifactContract")["detail"])["goal_id"]
+    store._conn.execute("UPDATE platform_goals SET orchestration_mode = 'agent_team' WHERE id = ?", (goal_id,))
+    store._conn.execute("UPDATE platform_autonomous_windows SET max_retries = 10")
+    store._conn.commit()
+    control = PlatformControlStore(store)
+    seen_prefer = []
+
+    def resolver(plan_task, *, goal=None, prefer_binding=None, **_kw):  # noqa: ARG001
+        seen_prefer.append(prefer_binding)
+        return {"binding_ref": "b-other", "executor_kind": "codex", "model_id": "gpt-6-sol"}
+
+    gs_limit = GoalService(store=store, control_store=control, task_resolver=resolver, max_review_rounds=1)
+    assert gs_limit._repair_rejected_reviews(goal_id) == ()
+    cons_after = store.get_task(consumer)
+    assert cons_after.status == "BLOCKED"
+    assert cons_after.failure_classification == "model_review_round_limit"
+    decision = json.loads(cons_after.failure_detail)
+    assert decision["handoff_action"] == "open_draft_pr"
+    assert decision["producer_task_id"] == producer
+    assert len(decision["open_findings"]) == 1
+    assert any(
+        e.type == "MODEL_SELECTION_FAILED" and e.metadata.get("handoff_action") == "open_draft_pr"
+        for e in store.get_events(consumer)
+    )
+
+    # Active source issue dedup during launch and explicit create(deduplicate_active_issue=True).
+    win_id = control.get_goal(goal_id).window_id
+    repo = control.get_goal(goal_id).repository
+    obj = f"Resolve https://github.com/{repo}/issues/77\n\n# Issue 77"
+    dig = hashlib.sha256(obj.encode()).hexdigest()[:16]
+    gs = GoalService(store=store, control_store=control)
+    g1 = gs.create({
+        "objective": obj, "repository": repo, "executor_kind": "deterministic_fixture",
+        "orchestration_mode": "single",
+        "idempotency_key": f"quick-start:{repo}:issue-77:{dig}:1",
+    })
+    gs.plan(g1.id, expected_revision=1, tasks=[{"id": "A", "title": "Fix 77", "instruction": "Fix it"}])
+    gs.approve(g1.id, expected_revision=1)
+    g1 = gs.launch(g1.id, expected_revision=1, window_id=win_id)
+    assert gs.create({
+        "objective": obj, "repository": repo,
+        "idempotency_key": f"quick-start:{repo}:issue-77:{dig}:2",
+        "deduplicate_active_issue": True,
+    }).id == g1.id
+
+    g2 = gs.create({
+        "objective": obj, "repository": repo, "executor_kind": "deterministic_fixture",
+        "orchestration_mode": "single",
+        "idempotency_key": f"quick-start:{repo}:issue-77:{dig}:2",
+    })
+    gs.plan(g2.id, expected_revision=1, tasks=[{"id": "A", "title": "Fix 77", "instruction": "Fix it"}])
+    gs.approve(g2.id, expected_revision=1)
+    with pytest.raises(TaskStoreError, match=f"active_source_issue_goal_already_running:{g1.id}"):
+        gs.launch(g2.id, expected_revision=1, window_id=win_id)

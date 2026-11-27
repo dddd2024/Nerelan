@@ -432,7 +432,13 @@ def _check_magpie_csv_invariants(
                 worker_cost += cost
 
     if probe_total == 0:
-        probe_inv = _invariant("probe_error_rate", "OK", 0.0, PROBE_ERROR_RATE_THRESHOLD, "0 Python-urllib probe rows")
+        probe_inv = _invariant(
+            "probe_error_rate",
+            "UNKNOWN",
+            None,
+            PROBE_ERROR_RATE_THRESHOLD,
+            "0 Python-urllib probe rows (no samples != 0% error rate)",
+        )
     else:
         err_rate = round(probe_err / probe_total, 4)
         probe_inv = _invariant(
@@ -495,6 +501,92 @@ def _load_magpie_cache_as_rows(cache_path: Path) -> list[dict[str, str]] | None:
     return adapted
 
 
+def _settlement_basis_breakdown(
+    conn: sqlite3.Connection, tables: set[str], cutoff_iso: str
+) -> dict[str, Any]:
+    """Separate multi-basis accounting across cash, list_price, credits, quota, and unknown."""
+    summary: dict[str, Any] = {
+        "usage_observations": {
+            "total": 0,
+            "list_price_known_rows": 0,
+            "list_price_usd": 0.0,
+            "zero_cost_rows": 0,
+            "unknown_rows": 0,
+        },
+        "budget_settlements": {
+            "cash_usd": {"rows": 0, "amount": 0.0},
+            "list_price_usd": {"rows": 0, "amount": 0.0},
+            "credits": {"rows": 0, "amount": 0.0},
+            "subscription_quota": {"rows": 0, "tokens": 0},
+            "unknown": {"rows": 0},
+        },
+    }
+    if "task_usage_observations" in tables:
+        cols = _table_columns(conn, "task_usage_observations")
+        status_expr = "COALESCE(status, 'UNKNOWN')" if "status" in cols else "'UNKNOWN'"
+        rows = conn.execute(
+            f"SELECT {status_expr} AS st, cost_micro_units FROM task_usage_observations WHERE created_at >= ?",
+            (cutoff_iso,),
+        ).fetchall()
+        obs = summary["usage_observations"]
+        for r in rows:
+            obs["total"] += 1
+            cost = r["cost_micro_units"]
+            if r["st"] not in {"OBSERVED", "PARTIAL"} or cost is None:
+                obs["unknown_rows"] += 1
+            elif int(cost) == 0:
+                obs["zero_cost_rows"] += 1
+            else:
+                obs["list_price_known_rows"] += 1
+                obs["list_price_usd"] = round(obs["list_price_usd"] + float(cost) / 1_000_000.0, 6)
+
+    if "platform_budget_reservations" in tables:
+        cols = _table_columns(conn, "platform_budget_reservations")
+        if "settlement_json" in cols:
+            time_col = "updated_at" if "updated_at" in cols else ("created_at" if "created_at" in cols else None)
+            sql = "SELECT settlement_json FROM platform_budget_reservations WHERE settlement_json IS NOT NULL AND settlement_json != ''"
+            params: tuple[Any, ...] = ()
+            if time_col:
+                sql += f" AND {time_col} >= ?"
+                params = (cutoff_iso,)
+            bs = summary["budget_settlements"]
+            for row in conn.execute(sql, params).fetchall():
+                try:
+                    doc = json.loads(row["settlement_json"])
+                except (TypeError, ValueError):
+                    bs["unknown"]["rows"] += 1
+                    continue
+                if not isinstance(doc, Mapping):
+                    bs["unknown"]["rows"] += 1
+                    continue
+                basis = str(doc.get("basis") or "").lower()
+                cash = doc.get("cash_usd")
+                list_p = doc.get("list_price_usd") if doc.get("list_price_usd") is not None else doc.get("cost_usd")
+                cred = doc.get("credits") if doc.get("credits") is not None else doc.get("reported_credits")
+                classified = False
+                if isinstance(cash, (int, float)) and not isinstance(cash, bool) and (cash > 0 or basis in {"payg", "cash", "cash_usd"}):
+                    bs["cash_usd"]["rows"] += 1
+                    bs["cash_usd"]["amount"] = round(bs["cash_usd"]["amount"] + float(cash), 6)
+                    classified = True
+                elif isinstance(cred, (int, float)) and not isinstance(cred, bool) and (cred > 0 or "credit" in basis):
+                    bs["credits"]["rows"] += 1
+                    bs["credits"]["amount"] = round(bs["credits"]["amount"] + float(cred), 6)
+                    classified = True
+                elif basis in {"subscription", "subscription_quota", "quota", "native"} or doc.get("billing_class") == "subscription":
+                    bs["subscription_quota"]["rows"] += 1
+                    tok = doc.get("total_tokens") or doc.get("tokens") or 0
+                    if isinstance(tok, (int, float)) and not isinstance(tok, bool) and tok > 0:
+                        bs["subscription_quota"]["tokens"] += int(tok)
+                    classified = True
+                elif isinstance(list_p, (int, float)) and not isinstance(list_p, bool) and list_p > 0:
+                    bs["list_price_usd"]["rows"] += 1
+                    bs["list_price_usd"]["amount"] = round(bs["list_price_usd"]["amount"] + float(list_p), 6)
+                    classified = True
+                if not classified:
+                    bs["unknown"]["rows"] += 1
+    return summary
+
+
 def run_health_audit(
     db_path: Path | str,
     *,
@@ -541,6 +633,7 @@ def run_health_audit(
             _check_waiting_receipt_rate(conn, tables, cutoff_24h),
             _check_stalled_or_repeating_tasks(conn, tables, cutoff_iso),
         ]
+        settlement_breakdown = _settlement_basis_breakdown(conn, tables, cutoff_iso)
     finally:
         conn.close()
 
@@ -557,6 +650,7 @@ def run_health_audit(
         "lookback_days": lookback_days,
         "overall_status": overall,
         "invariants": invariants,
+        "settlement_basis_breakdown": settlement_breakdown,
     }
 
 

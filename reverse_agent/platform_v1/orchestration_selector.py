@@ -64,6 +64,44 @@ def _tokens_unknown(tokens: Any) -> bool:
     return any(value is None for value in tokens.values())
 
 
+def fast_path_eligible(
+    task: Mapping[str, Any] | Any,
+    *,
+    changed_paths: Sequence[str] = (),
+    difficulty: int | None = None,
+) -> dict[str, Any]:
+    """Recommend single-implementer + independent-review fast path for scoped R1 tasks."""
+    import fnmatch
+
+    r2_patterns = (
+        "AGENTS.md", "docs/agents/*", ".github/workflows/*", "reverse_agent/landing_review.py",
+        "requirements*.txt", "pyproject.toml", "frontend/package.json", "frontend/package-lock.json",
+    )
+    if difficulty is None:
+        raw_diff = task.get("difficulty") if isinstance(task, Mapping) else getattr(task, "difficulty", None)
+        diff_val = raw_diff if type(raw_diff) is int else None
+    else:
+        diff_val = difficulty
+
+    reasons: list[str] = []
+    if diff_val is not None and diff_val > 3:
+        reasons.append(f"difficulty_{diff_val}_gt_3")
+    paths = [str(p).strip().replace("\\", "/") for p in changed_paths if isinstance(p, str) and p.strip()]
+    if len(paths) > 4:
+        reasons.append("too_many_changed_paths")
+    for p in paths:
+        if any(fnmatch.fnmatchcase(p, pat) for pat in r2_patterns):
+            reasons.append(f"r2_sensitive_path:{p}")
+            break
+    eligible = not reasons
+    return {
+        "eligible": eligible,
+        "recommended_mode": "single" if eligible else "sequential_team",
+        "reasons": reasons or ["scoped_r1_fast_path"],
+        "requires_independent_review": True,
+    }
+
+
 def select_orchestration(
     *,
     size_estimate: Mapping[str, Any],

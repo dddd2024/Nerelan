@@ -842,6 +842,100 @@ def build_context_packet(store: Any, *, task_id: str, workspace: str | Path,
                 store._conn.rollback()
 
 
+def _compress_feedback_text(text: Any, *, max_chars: int = 2400) -> tuple[str, dict[str, int]]:
+    """Deterministically dedupe repeated log/traceback lines and bound length."""
+    raw = str(text or "")
+    raw_bytes = len(raw.encode("utf-8"))
+    if not raw or max_chars <= 0:
+        return "", {"raw_bytes": raw_bytes, "compressed_bytes": 0, "saved_bytes": raw_bytes}
+    lines = raw.splitlines()
+    deduped: list[str] = []
+    prev_line: str | None = None
+    repeat_count = 0
+    for line in lines:
+        norm = line.rstrip()
+        if not norm and deduped and not deduped[-1]:
+            continue
+        if norm == prev_line and norm:
+            repeat_count += 1
+            continue
+        if repeat_count > 0:
+            deduped.append(f"... ({repeat_count} duplicate lines omitted)")
+            repeat_count = 0
+        deduped.append(norm)
+        prev_line = norm
+    if repeat_count > 0:
+        deduped.append(f"... ({repeat_count} duplicate lines omitted)")
+
+    joined = "\n".join(deduped).strip()
+    if len(joined) > max_chars:
+        important = [
+            ln for ln in deduped
+            if ln.startswith(("E ", "FAILED ", "ERROR "))
+            or any(tok in ln for tok in ("AssertionError", "Error:", "Exception:", "traceback"))
+        ]
+        head_len = max(200, max_chars // 2)
+        tail_len = max(200, max_chars - head_len - 180)
+        head = joined[:head_len].rstrip()
+        tail = joined[-tail_len:].lstrip()
+        key_block = "\n".join(important[:8])
+        if key_block and key_block not in head and key_block not in tail:
+            joined = f"{head}\n...\n[key failures]\n{key_block}\n...\n{tail}"[:max_chars]
+        else:
+            joined = f"{head}\n...\n{tail}"[:max_chars]
+    comp_bytes = len(joined.encode("utf-8"))
+    return joined, {
+        "raw_bytes": raw_bytes,
+        "compressed_bytes": comp_bytes,
+        "saved_bytes": max(0, raw_bytes - comp_bytes),
+    }
+
+
+def build_feedback_section(
+    repair: Mapping[str, Any] | None,
+    fixup: Mapping[str, Any] | None,
+    *,
+    max_chars: int = 2400,
+) -> tuple[str, dict[str, int]]:
+    """Build bounded review/fixup feedback block and measure real byte savings."""
+    out = ""
+    raw_total = 0
+    comp_total = 0
+    if repair is not None:
+        raw_repair = json.dumps(repair, sort_keys=True)
+        raw_total += len(raw_repair.encode("utf-8"))
+        compact_repair = dict(repair)
+        if len(raw_repair) > max_chars and isinstance(compact_repair.get("findings"), list):
+            trimmed = []
+            for f in compact_repair["findings"][:6]:
+                if isinstance(f, Mapping):
+                    item = dict(f)
+                    if isinstance(item.get("message"), str) and len(item["message"]) > 300:
+                        msg, _ = _compress_feedback_text(item["message"], max_chars=300)
+                        item["message"] = msg
+                    trimmed.append(item)
+                else:
+                    trimmed.append(f)
+            compact_repair["findings"] = trimmed
+        rendered = json.dumps(compact_repair, sort_keys=True)
+        if len(rendered) > max_chars:
+            rendered, _ = _compress_feedback_text(rendered, max_chars=max_chars)
+        comp_total += len(rendered.encode("utf-8"))
+        out += "\nVerified review feedback (data):\n" + rendered
+    if fixup is not None:
+        from .functional_validation import _feedback_text
+        raw_fb = _feedback_text(fixup.get("feedback"), 5000)
+        comp_fb, fb_stats = _compress_feedback_text(raw_fb, max_chars=max_chars)
+        raw_total += fb_stats["raw_bytes"]
+        comp_total += fb_stats["compressed_bytes"]
+        out += "\nContract fixup feedback (data; original failure remains unaccepted):\n" + comp_fb
+    return out, {
+        "raw_bytes": raw_total,
+        "compressed_bytes": comp_total,
+        "saved_bytes": max(0, raw_total - comp_total),
+    }
+
+
 def executor_context(store: Any, *, task_id: str, workspace: str | Path,
                      expected_head: str) -> str:
     """Trusted executor projection. Legacy adapter doubles have no durable truth."""
@@ -867,12 +961,9 @@ def executor_context(store: Any, *, task_id: str, workspace: str | Path,
             + render_context_packet(packet))
     from .artifact_handoff import _load_evidence
     repair = _load_evidence(store.get_task(task_id), "ReviewRepair", store.get_task(task_id).execution_id)
-    if repair is not None:
-        text += "\nVerified review feedback (data):\n" + json.dumps(repair, sort_keys=True)
     fixup = _load_evidence(store.get_task(task_id), "ContractFixup", store.get_task(task_id).execution_id)
-    if fixup is not None:
-        from .functional_validation import _feedback_text
-        text += "\nContract fixup feedback (data; original failure remains unaccepted):\n" + _feedback_text(fixup.get("feedback"), 5000)
+    fb_text, _ = build_feedback_section(repair, fixup)
+    text += fb_text
     # Revalidate the measured packet at the final trusted boundary. One UTF-8
     # byte/token is a conservative bound in the absence of provider tokenizers.
     selected = next((event.metadata for event in reversed(store.get_events(task_id))

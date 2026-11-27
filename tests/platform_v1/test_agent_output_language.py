@@ -37,6 +37,19 @@ def test_rule_sits_outside_the_authority_block_and_before_the_task(monkeypatch):
         assert prompt.count("OUTPUT LANGUAGE") == 1
 
 
+def test_static_prefix_is_identical_across_different_worktrees(monkeypatch):
+    monkeypatch.setenv("REVERSE_AGENT_AGENT_LANGUAGE", "en")
+    p1 = build_prompt("task-a", "/tmp/ws-alpha")
+    p2 = build_prompt("task-b", "/tmp/ws-beta")
+    prefix1 = p1.split("Worktree: ", 1)[0]
+    prefix2 = p2.split("Worktree: ", 1)[0]
+    assert prefix1 == prefix2 and "END AUTHORITY CONSTRAINTS" in prefix1
+
+    rp1 = build_role_prompt("task-a", "/tmp/ws-alpha", RoleContext("coder", "t1", "/tmp/ws-alpha"))
+    rp2 = build_role_prompt("task-b", "/tmp/ws-beta", RoleContext("coder", "t2", "/tmp/ws-beta"))
+    assert rp1.split("Worktree: ", 1)[0] == rp2.split("Worktree: ", 1)[0]
+
+
 @pytest.mark.parametrize("executor_class, kind", [(CodexExecutor, "codex"), (ClaudeCodeExecutor, "claude_code")])
 @pytest.mark.parametrize("language, expected", [(None, True), ("en", False)])
 def test_native_executors_carry_the_same_rule(tmp_path, monkeypatch, executor_class, kind, language, expected):
