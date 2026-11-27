@@ -215,6 +215,7 @@ def _check_goal_hygiene(
     conn: sqlite3.Connection,
     tables: set[str],
     closed_issue_numbers: set[int] | None,
+    closed_issue_refs: set[tuple[str, int]] | None = None,
 ) -> dict[str, Any]:
     if "platform_goals" not in tables or "platform_autonomous_windows" not in tables:
         return _invariant("goal_hygiene", "UNKNOWN", None, 0, "missing goal/window tables")
@@ -223,13 +224,16 @@ def _check_goal_hygiene(
         for r in conn.execute("SELECT id, status FROM platform_autonomous_windows").fetchall()
     }
     has_pub_link = "platform_publications" in tables and "platform_goal_task_links" in tables
-    goals = conn.execute("SELECT id, status, window_id, title FROM platform_goals").fetchall()
+    goal_cols = _table_columns(conn, "platform_goals")
+    repo_select = "repository" if "repository" in goal_cols else "'' AS repository"
+    goals = conn.execute(f"SELECT id, status, window_id, title, {repo_select} FROM platform_goals").fetchall()
 
     active_window_running = 0
     stranded_running = 0
     stranded_with_publications = 0
     by_active_issue: dict[int, list[str]] = {}
     by_blocked_issue: dict[int, list[str]] = {}
+    closed_known = closed_issue_refs is not None or closed_issue_numbers is not None
     closed_issue_active = 0
 
     for g in goals:
@@ -241,7 +245,13 @@ def _check_goal_hygiene(
         if issue_num is not None:
             if st in ("RUNNING", "PLANNED"):
                 by_active_issue.setdefault(issue_num, []).append(g["id"])
-                if closed_issue_numbers is not None and issue_num in closed_issue_numbers:
+                repo_name = str(g["repository"] or "").strip().lower()
+                is_closed = (
+                    ((repo_name, issue_num) in closed_issue_refs)
+                    if closed_issue_refs is not None
+                    else (issue_num in closed_issue_numbers if closed_issue_numbers is not None else False)
+                )
+                if is_closed:
                     closed_issue_active += 1
             else:
                 by_blocked_issue.setdefault(issue_num, []).append(g["id"])
@@ -272,12 +282,12 @@ def _check_goal_hygiene(
         "stranded_with_publications": stranded_with_publications,
         "duplicate_issue_groups": duplicate_issue_groups,
         "blocked_duplicate_issue_groups": blocked_duplicate_issue_groups,
-        "closed_issue_active_goals": closed_issue_active if closed_issue_numbers is not None else "UNKNOWN",
+        "closed_issue_active_goals": closed_issue_active if closed_known else "UNKNOWN",
     }
     alert = (
         stranded_running > 0
         or duplicate_issue_groups > 0
-        or (closed_issue_numbers is not None and closed_issue_active > 0)
+        or (closed_known and closed_issue_active > 0)
     )
     return _invariant(
         "goal_hygiene",
@@ -493,6 +503,7 @@ def run_health_audit(
     magpie_csv_path: Path | str | None = None,
     magpie_cache_path: Path | str | None = None,
     closed_issue_numbers: Iterable[int] | None = None,
+    closed_issue_refs: Iterable[tuple[str, int]] | None = None,
 ) -> dict[str, Any]:
     """Run all 8 deterministic read-only invariants without LLM or network calls."""
     if lookback_days <= 0:
@@ -502,6 +513,11 @@ def run_health_audit(
     cutoff_iso = _iso_cutoff(ref_now, days=lookback_days)
     cutoff_24h = _iso_cutoff(ref_now, hours=24)
     closed_set = set(int(n) for n in closed_issue_numbers) if closed_issue_numbers is not None else None
+    closed_ref_set = (
+        {(str(repo).strip().lower(), int(num)) for repo, num in closed_issue_refs}
+        if closed_issue_refs is not None
+        else None
+    )
     if magpie_csv_path is not None:
         magpie_rows = _load_magpie_csv(Path(magpie_csv_path))
     elif magpie_cache_path is not None:
@@ -520,7 +536,7 @@ def run_health_audit(
             _check_unpriced_usage_obs_ratio(conn, tables, cutoff_iso),
             probe_inv,
             _check_low_cache_hit_routes(conn, tables, cutoff_iso),
-            _check_goal_hygiene(conn, tables, closed_set),
+            _check_goal_hygiene(conn, tables, closed_set, closed_ref_set),
             sup_inv,
             _check_waiting_receipt_rate(conn, tables, cutoff_24h),
             _check_stalled_or_repeating_tasks(conn, tables, cutoff_iso),

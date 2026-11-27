@@ -677,3 +677,103 @@ class TestHealthAuditIntegration:
             assert any(inv["id"] == "failed_fresh_token_share" for inv in view["health_audit"]["invariants"])
         finally:
             task_store._conn.close()
+
+    def test_health_audit_unknown_invariants_do_not_alert_and_staleness_raises_once(self):
+        clock_now = NOW
+        mode = ["unknown"]
+
+        def provider():
+            if mode[0] == "none":
+                return None
+            return {
+                "schema_version": 1,
+                "generated_at": "2027-01-15T08:00:00Z",
+                "lookback_days": 7,
+                "overall_status": "PARTIAL_UNKNOWN",
+                "invariants": [
+                    {"id": "probe_error_rate", "status": "UNKNOWN", "metric": None, "threshold": 0.1, "detail": "missing"},
+                    {"id": "failed_fresh_token_share", "status": "OK", "metric": 0.05, "threshold": 0.3, "detail": "ok"},
+                ],
+            }
+
+        m = monitor(
+            stored_statuses=lambda: [status("a"), status("b")],
+            health_audit_provider=provider,
+            health_audit_interval_seconds=600.0,
+            clock=lambda: clock_now,
+        )
+        v1 = m.refresh()
+        assert v1["health_audit_stale"] is False
+        assert not any(a["code"].startswith("health_audit_") for a in v1["alerts"]["active"])
+
+        # Subsequent refresh fails to produce a new report past 2x interval -> stale alert raises.
+        mode[0] = "none"
+        clock_now += 1250.0
+        v2 = m.refresh()
+        assert v2["health_audit_stale"] is True
+        assert v2["health_audit_age_seconds"] == 1250.0
+        assert any(a["code"] == "health_audit_stale" for a in v2["alerts"]["active"])
+
+        # Recovery resolves stale alert automatically.
+        mode[0] = "unknown"
+        clock_now += 650.0
+        v3 = m.refresh()
+        assert v3["health_audit_stale"] is False
+        assert not any(a["code"] == "health_audit_stale" for a in v3["alerts"]["active"])
+        assert any(e["code"] == "health_audit_stale" and e["event"] == "resolved" for e in v3["alerts"]["recent"])
+
+    def test_trusted_host_wires_magpie_cache_and_cached_closed_issues_without_network(self, tmp_path, monkeypatch):
+        import hashlib
+        from datetime import datetime, timezone
+        from pathlib import Path
+        from reverse_agent.platform_v1.goal_source_issue import GoalSourceIssues
+        from reverse_agent.platform_v1.magpie_usage_ingest import merge_into_cache, parse_usage_csv
+
+        monkeypatch.delenv("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED", raising=False)
+        monkeypatch.delenv("REVERSE_AGENT_MAGPIE", raising=False)
+        monkeypatch.delenv("REVERSE_AGENT_MAGPIE_EXE", raising=False)
+        host, task_store = TestHostLifecycle.host(tmp_path, monkeypatch)
+        try:
+            now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            cache_path = Path(task_store.db_path).parent / "magpie_usage_cache.jsonl"
+            rows = parse_usage_csv("\n".join([
+                "time,agent,status,rejected,cost_usd,request_id",
+                f"{now_iso},Python-urllib,500,true,0.0,p1",
+                f"{now_iso},Python-urllib,200,false,0.0,p2",
+                f"{now_iso},codex,200,false,1.0,s1",
+                f"{now_iso},opencode,200,false,2.0,w1",
+            ]))
+            merge_into_cache(rows, path=cache_path)
+
+            objective = "Resolve https://github.com/dddd2024/Nerelan/issues/1525\n\n# Cached closed"
+            digest = hashlib.sha256(objective.encode()).hexdigest()[:16]
+            goal = host._goal_service.create({
+                "title": "#1525 cached closed goal",
+                "objective": objective,
+                "repository": "dddd2024/Nerelan",
+                "executor_kind": "opencode",
+                "idempotency_key": f"quick-start:dddd2024/Nerelan:issue-1525:{digest}:1",
+            })
+            goal = host._goal_service.plan(
+                goal.id,
+                expected_revision=1,
+                tasks=[{"id": "T1", "title": "Fix", "instruction": "Fix", "agent_role": "coder"}],
+            ).goal
+            # Warm cache once with an in-memory reader, then replace reader to fail if called during audit.
+            source_issues = GoalSourceIssues(
+                lambda repo, num: {"number": num, "url": f"https://github.com/{repo}/issues/{num}", "state": "CLOSED"}
+            )
+            assert source_issues.closed(goal) is True
+            source_issues._reader = lambda *_: (_ for _ in ()).throw(AssertionError("network call not allowed"))
+            host._goal_service.source_issues = source_issues
+
+            report = host._run_health_audit()
+            assert report is not None
+            by_id = {inv["id"]: inv for inv in report["invariants"]}
+            assert by_id["probe_error_rate"]["status"] == "ALERT"
+            assert by_id["probe_error_rate"]["metric"] == 0.5
+            assert by_id["supervision_to_worker_cost_ratio"]["status"] == "OK"
+            assert by_id["supervision_to_worker_cost_ratio"]["metric"] == 0.5
+            assert by_id["goal_hygiene"]["metric"]["closed_issue_active_goals"] == 1
+        finally:
+            task_store._conn.close()
