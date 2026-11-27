@@ -575,6 +575,8 @@ def build_fast_path_plan(
     fast_path_spec: Mapping[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """Build a deterministic 2-task implement + review plan for scoped R1 goals (#1267)."""
+    import posixpath
+
     if not isinstance(fast_path_spec, Mapping):
         return None
     raw_paths = fast_path_spec.get("allowed_paths")
@@ -582,17 +584,29 @@ def build_fast_path_plan(
     raw_diff = fast_path_spec.get("difficulty")
     if not isinstance(raw_paths, (list, tuple)) or not isinstance(raw_checks, (list, tuple)) or not raw_checks:
         return None
+    paths: list[str] = []
+    for item in raw_paths:
+        if not isinstance(item, str) or not item.strip():
+            return None
+        cleaned = item.strip().replace("\\", "/")
+        if cleaned.startswith("/"):
+            return None
+        normed = posixpath.normpath(cleaned)
+        if normed in {"", "."} or normed.startswith(".."):
+            return None
+        paths.append(normed)
+    if not paths:
+        return None
     from .orchestration_selector import fast_path_eligible
     eligibility = fast_path_eligible(
         {"difficulty": raw_diff},
-        changed_paths=raw_paths,
+        changed_paths=paths,
         difficulty=raw_diff if type(raw_diff) is int else None,
     )
     if not eligibility["eligible"]:
         return None
-    paths = [str(p).strip().replace("\\", "/").lstrip("./") for p in raw_paths if isinstance(p, str) and p.strip()]
     checks = [dict(item) for item in raw_checks if isinstance(item, Mapping)]
-    if not checks or not paths:
+    if not checks:
         return None
     title = str(getattr(goal, "title", "") or fast_path_spec.get("title") or "Scoped R1 task").strip()[:160]
     objective = str(getattr(goal, "objective", "") or title).strip()

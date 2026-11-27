@@ -406,6 +406,7 @@ def _completed_tool_signature(part: Mapping[str, Any]) -> tuple[str, str] | None
         "tool": tool_name,
         "status": status,
         "input": state.get("input"),
+        "output": state.get("output") if status == "completed" else "",
         "error": state.get("error") if status == "error" else "",
     })
     return part_key, sig

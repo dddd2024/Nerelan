@@ -1155,7 +1155,7 @@ def test_consecutive_identical_tool_calls_abort_with_executor_tool_loop(monkeypa
                 "sessionID": "session-exact",
                 "type": "tool",
                 "tool": "read",
-                "state": {"status": "completed", "input": {"path": "same.py"}},
+                "state": {"status": "completed", "input": {"path": "same.py"}, "output": "identical"},
             }
         })))
     run, stream, calls, clock = _timed_role(monkeypatch, chunks, abort_result=True)

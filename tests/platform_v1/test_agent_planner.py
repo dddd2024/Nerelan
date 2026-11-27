@@ -611,7 +611,7 @@ def test_deterministic_fast_path_plans_scoped_r1_without_runner_and_reports_conf
     assert status["token_usage"] == {"input_tokens": 0, "output_tokens": 0}
     assert not calls
 
-    # Ineligible (R2 path or high difficulty) falls back cleanly to None / normal planner runner.
-    r2_spec = {**spec, "allowed_paths": ["AGENTS.md"]}
-    assert build_fast_path_plan(goal, fast_path_spec=r2_spec) is None
+    # Ineligible (R2 path, tricky dot normalization, or high difficulty) falls back cleanly to None.
+    for blocked in ("AGENTS.md", "..AGENTS.md", "..docs/agents/x.md", "..requirements.txt", "/AGENTS.md", "."):
+        assert build_fast_path_plan(goal, fast_path_spec={**spec, "allowed_paths": [blocked]}) is None
     assert build_fast_path_plan(goal, fast_path_spec={**spec, "difficulty": 4}) is None
