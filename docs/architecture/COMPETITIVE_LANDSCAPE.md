@@ -22,6 +22,7 @@ Nerelan 要坚持的差异化：在授权范围内，综合任务能力、账户
 | Rulesync | `dyoshikawa/rulesync` | 中：统一生成各 Agent 的配置 | 小规模验证后复用 | 无 | 不能让它成为第二套治理真相；`AGENTS.md` 仍是权威 | 需要为多个执行器维护同一套非权威指令时 | 2026-11-08 |
 | Agent-Native | `BuilderIO/agent-native` | 中：Agent 与 UI 共用操作接口 | 借鉴 Action 设计 | 无 | 是应用框架，不是调度或治理层 | 前端操作需要同时暴露给 Agent 时 | 2026-11-08 |
 | OpenHands | `OpenHands/OpenHands` | 中：Agent 工作台 | 已复用前端框架 | 侧栏与工作台框架，见 `frontend/OPENHANDS_REUSE_MAP.md` | 只复用 UI，不复用其运行时 | 其前端组件大版本变化时 | 2026-11-08 |
+| Deep Agents | `langchain-ai/deepagents` | 高：Agent 中间件、子 Agent、Skills 动态工具披露、文件权限、摘要、异步任务 | 借鉴中间件模式，暂缓 SDK 安装 | [固定源码审计](reuse-study-2026-11-16/deepagents.md)、[#1657](https://github.com/dddd2024/Nerelan/issues/1657)；Nerelan 已有 LangGraph/TaskStore/context_recovery | 外部 Agent Graph/remote thread 不是 TaskStore；Skills/AGENTS.md 不是宿主授权，文件权限默认 allow 且 LocalShellBackend 无 OS 沙箱 | 本地 provider-free 兼容性验证并证明每个独立验收成功任务的质量/完整成本与安全均有净改善后 | 2026-11-17 |
 | LangGraph | `langchain-ai/langgraph` | 低：图式工作流 | 已复用 | 团队图与开发图 | 已是依赖 | 大版本或检查点格式变化时 | 2026-11-08 |
 | OpenCode | `anomalyco/opencode` | 低：执行器 | 已复用 | 执行适配器 | 已是依赖 | 子进程管理或用量上报接口变化时（关联 #1336） | 2026-11-08 |
 | Sogen | `momo5502/sogen` | 低：二进制仿真与动态逆向 | 后续扩展候选 | 无 | 逆向不在默认产品范围 | 逆向扩展立项时 | 2026-11-08 |
