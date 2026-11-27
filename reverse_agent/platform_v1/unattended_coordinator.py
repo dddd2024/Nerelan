@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+import inspect
 import logging
 import math
 import os
@@ -223,7 +224,10 @@ class UnattendedCoordinator:
                 self.reconcile(fail_closed_on_durable=True)
             finally:
                 self._skip_sweep_thread = None
-            self._recovering = self.goal_escalator is not None
+            self._recovering = (
+                self.goal_escalator is not None
+                or callable(getattr(self.goals, "reconcile_closed_source_goals", None))
+            )
             self._stop.clear()
             thread = threading.Thread(
                 target=self._run, name="reverse-agent-unattended", daemon=True
@@ -287,19 +291,31 @@ class UnattendedCoordinator:
                               for task_id in self.control_store.recover_orphaned_preparations())
         except Exception as exc:  # noqa: BLE001 - must never break reconciliation
             self._last_error = f"orphaned_preparation_recovery_failed:{type(exc).__name__}"
-        reconcile_closed = getattr(self.goals, "reconcile_closed_source_goals", None)
-        if callable(reconcile_closed):
-            try:
-                reconciled.extend(
-                    f"closed_source_goal:{goal_id}"
-                    for goal_id in reconcile_closed()
-                )
-            except Exception as exc:  # noqa: BLE001 - must never break reconciliation
-                self._last_error = f"closed_source_reconcile_failed:{type(exc).__name__}"
         if self._skip_sweep_thread != threading.get_ident():
             stop_event = self._stop if threading.current_thread() is self._thread else None
+            reconciled.extend(
+                f"closed_source_goal:{goal_id}"
+                for goal_id in self._reconcile_closed_source_goals(stop_event=stop_event)
+            )
             self._sweep_escalations(stop_event=stop_event)
         return tuple(reconciled)
+
+    def _reconcile_closed_source_goals(
+        self, *, stop_event: threading.Event | None = None
+    ) -> list[str]:
+        reconcile_closed = getattr(self.goals, "reconcile_closed_source_goals", None)
+        if not callable(reconcile_closed) or (stop_event is not None and stop_event.is_set()):
+            return []
+        try:
+            params = inspect.signature(reconcile_closed).parameters
+            return list(
+                reconcile_closed(stop_event=stop_event)
+                if "stop_event" in params
+                else reconcile_closed()
+            )
+        except Exception as exc:  # noqa: BLE001 - must never break reconciliation
+            self._last_error = f"closed_source_reconcile_failed:{type(exc).__name__}"
+            return []
 
     def _next_sweep_delay(self, goal_id: str) -> float:
         """Seconds before re-examining an unchanged stuck goal (#1652)."""
@@ -1306,6 +1322,7 @@ class UnattendedCoordinator:
         try:
             if self._recovering and not self._stop.is_set():
                 try:
+                    self._reconcile_closed_source_goals(stop_event=self._stop)
                     self._sweep_escalations(stop_event=self._stop)
                 finally:
                     with self._lifecycle_lock:

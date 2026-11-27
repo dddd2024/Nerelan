@@ -23,7 +23,7 @@ from .model_availability import (EXECUTOR_TERMINATED, HOST_RETRY_CLASSES, HOST_V
 from .goal_source_issue import GoalSourceIssues
 from typing import Any, Callable, Mapping, Sequence
 
-from .control_store import GoalRecord, PlatformControlStore, reject_sensitive_keys
+from .control_store import GoalRecord, PlatformControlStore, encode_cursor, reject_sensitive_keys
 from .repository_workspace import (
     RepositoryWorkspaceError,
     resolve_repository_workspace,
@@ -507,11 +507,30 @@ class GoalService:
             return self.control_store.supersede_closed_issue_goal(goal_id, revision=goal.revision)
         return False
 
+    def _iter_goals(self, *, start_cursor: str | None = None, fallback_limit: int = 500):
+        """Yield ``(goal, cursor_after_goal, page_next_cursor)`` across stored goals."""
+        list_page = getattr(self.control_store, "list_goals_page", None)
+        if not callable(list_page):
+            for goal in self.control_store.list_goals(limit=fallback_limit):
+                yield goal, None, None
+            return
+        cursor = start_cursor
+        while True:
+            goals, _, next_cursor = list_page(limit=100, cursor=cursor)
+            if not goals:
+                break
+            for idx, goal in enumerate(goals):
+                at_store_end = next_cursor is None and idx == len(goals) - 1
+                yield goal, None if at_store_end else encode_cursor("goals", goal.created_at, goal.id), next_cursor
+            if next_cursor is None:
+                break
+            cursor = next_cursor
+
     def active_source_issue_goal(self, repository: str, issue_number: int) -> GoalRecord | None:
         """Return an existing non-terminal Goal for ``(repository, issue_number)``, if any."""
         from .goal_source_issue import source_issue
 
-        for goal in self.control_store.list_goals(limit=500):
+        for goal, _, _ in self._iter_goals():
             if goal.repository != repository:
                 continue
             if goal.status not in {"DRAFT", "PLANNED", "APPROVED", "RUNNING"}:
@@ -520,27 +539,52 @@ class GoalService:
                 return goal
         return None
 
-    def reconcile_closed_source_goals(self, *, limit: int = 100, fresh: bool = False) -> list[str]:
+    def reconcile_closed_source_goals(
+        self,
+        *,
+        limit: int = 100,
+        fresh: bool = False,
+        stop_event: Any = None,
+    ) -> list[str]:
         """Supersede goals whose source GitHub issue is closed across all/inactive windows.
 
-        Preserves existing attempts, evidence, receipts, and COMPLETE/merged landings
+        Uses a progressing page cursor across calls so stores with >100 goals are
+        covered without starving older goals, while bounding each pass to ``limit``
+        candidate source-issue checks and honoring ``stop_event``. Preserves
+        existing attempts, evidence, receipts, and COMPLETE/merged landings
         (delegated to ``control_store.supersede_closed_issue_goal``).
         """
         if self.source_issues is None:
             return []
         from .goal_source_issue import source_issue
 
+        budget = max(1, min(limit, 500))
+        cursor = getattr(self, "_closed_source_reconcile_cursor", None)
         superseded: list[str] = []
+        examined = 0
         eligible_states = {"DRAFT", "PLANNED", "APPROVED", "RUNNING", "BLOCKED", "COMPLETED"}
-        for goal in self.control_store.list_goals(limit=max(1, min(limit, 500))):
-            if goal.status not in eligible_states:
-                continue
-            if source_issue(goal) is None:
-                continue
-            if self.source_issues.closed(goal, fresh=fresh):
-                if self.control_store.supersede_closed_issue_goal(goal.id, revision=goal.revision):
-                    if self.control_store.get_goal(goal.id).status == "SUPERSEDED":
-                        superseded.append(goal.id)
+        last_resume_cursor = cursor
+        reached_budget_or_stop = False
+
+        for goal, cursor_after, _ in self._iter_goals(start_cursor=cursor, fallback_limit=budget):
+            if stop_event is not None and stop_event.is_set():
+                self._closed_source_reconcile_cursor = last_resume_cursor
+                reached_budget_or_stop = True
+                break
+            if goal.status in eligible_states and source_issue(goal) is not None:
+                examined += 1
+                if self.source_issues.closed(goal, fresh=fresh):
+                    if self.control_store.supersede_closed_issue_goal(goal.id, revision=goal.revision):
+                        if self.control_store.get_goal(goal.id).status == "SUPERSEDED":
+                            superseded.append(goal.id)
+            last_resume_cursor = cursor_after
+            if examined >= budget:
+                self._closed_source_reconcile_cursor = cursor_after
+                reached_budget_or_stop = True
+                break
+
+        if not reached_budget_or_stop:
+            self._closed_source_reconcile_cursor = None
         return superseded
 
     def _task_route(self, goal: GoalRecord, plan_task: PlannedTask) -> tuple[str, str, str]:

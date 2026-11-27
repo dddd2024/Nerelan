@@ -2382,3 +2382,34 @@ def test_repeated_deferrals_and_undated_quota_wait_avoid_policy_receipt_storms(t
         assert receipts("allowed") == 2
     finally:
         store._conn.close()
+
+
+def test_start_defers_closed_source_reconciliation_off_startup_thread(tmp_path):
+    import threading
+
+    store = TaskStore(tmp_path / "startup.sqlite3")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    caller_tid = threading.get_ident()
+    observed_threads = []
+    called = threading.Event()
+
+    class StubGoals:
+        def reconcile_closed_source_goals(self, *, stop_event=None):
+            observed_threads.append((threading.get_ident(), stop_event))
+            called.set()
+            return []
+
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=autonomy, router=ExecutorRouter(),
+        workspace_root=tmp_path / "ws", goals=StubGoals(), poll_interval=0.05,
+    )
+    try:
+        coordinator.start()
+        assert called.wait(timeout=2.0)
+        assert observed_threads
+        assert all(tid != caller_tid for tid, _ in observed_threads)
+        assert all(ev is coordinator._stop for _, ev in observed_threads)
+    finally:
+        coordinator.stop()
+        store._conn.close()
