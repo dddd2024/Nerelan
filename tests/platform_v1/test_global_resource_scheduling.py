@@ -148,3 +148,69 @@ def test_daily_pool_opportunity_urgency_increases_near_reset() -> None:
     assert cost_class == "subscription"
     assert "daily_pool" in resources
     assert 0.0 < ra.urgency(resources, now=ts) < 1.0
+
+
+def test_claim_time_pool_capacity_blocks_concurrent_gateway_dispatch(tmp_path: Path) -> None:
+    from reverse_agent.platform_v1.autonomy import AutonomyService
+    from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
+    from reverse_agent.platform_v1.run_store import TaskStore, TaskStoreError
+    from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+    from test_unattended_coordinator import _budget_window
+
+    state = tmp_path / "model_setup_state.json"
+    overrides = tmp_path / "model_routing_overrides.json"
+    overrides.write_text(
+        json.dumps({"pool_limits": {"token-sensenova": {"max_in_flight": 1}}}),
+        encoding="utf-8",
+    )
+
+    class _FakeStore:
+        _state_path = state
+
+        def __init__(self) -> None:
+            self._bindings = [{
+                "binding_id": "b-sense",
+                "connection_id": "magpie",
+                "model_id": "token-sensenova/glm-5.3",
+                "executor_id": "opencode",
+            }]
+            self._conns = {"magpie": {"connection_id": "magpie", "auth_method": "none", "account_ref": "magpie"}}
+
+        def list_bindings_public(self):
+            return list(self._bindings)
+
+        def list_connections_public(self):
+            return list(self._conns.values())
+
+        def get_connection_public(self, cid: str):
+            return self._conns[cid]
+
+    task_store = TaskStore(tmp_path / "pool-claim.sqlite3")
+    control = PlatformControlStore(task_store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    win = _budget_window(autonomy, policy_id="pool-cap", max_tokens=100_000, reservation=10_000)
+
+    t1 = task_store.create_task(title="pool-1", executor_kind="opencode", binding_ref="b-sense")
+    t2 = task_store.create_task(title="pool-2", executor_kind="opencode", binding_ref="b-sense")
+
+    host = CombinedTrustedHost.__new__(CombinedTrustedHost)
+    host._store = _FakeStore()
+    host._task_store = task_store
+    host._control_store = control
+
+    # Claim t1 (status remains QUEUED until background worker starts, matching coordinator fan-out):
+    epoch1, _ = control.claim_task(window_id=win.id, task_id=t1.id, owner="o", lease_ms=60_000)
+    by_id = {b["binding_id"]: b for b in host._store.list_bindings_public()}
+    conns = {c["connection_id"]: c for c in host._store.list_connections_public()}
+    assert host._in_flight_by_upstream(by_id, conns) == {"token-sensenova": 1}
+
+    # Re-evaluating t1 itself does not self-block; preparing t2 against the same capped pool raises QUOTA_WAIT.
+    host._prepare_task_quota(task_store.get_task(t1.id))
+    with pytest.raises(TaskStoreError, match="QUOTA_WAIT:pool_concurrency_limit:token-sensenova:1/1"):
+        host._prepare_task_quota(task_store.get_task(t2.id))
+
+    # Releasing t1's claim frees the physical pool slot for t2.
+    control.complete_task_claim(window_id=win.id, task_id=t1.id, owner="o", epoch=epoch1, result="success")
+    host._prepare_task_quota(task_store.get_task(t2.id))
+    task_store._conn.close()

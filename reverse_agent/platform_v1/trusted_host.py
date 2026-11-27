@@ -949,34 +949,60 @@ class CombinedTrustedHost:
                 error.decision["pool_size"] = len(pool_refs)
             raise error from exc
 
+    @staticmethod
+    def _binding_pool_key(
+        binding: Mapping[str, Any],
+        connections: Mapping[str, Mapping[str, Any]],
+    ) -> str:
+        from .routing_inputs import upstream_namespace
+        pool_key = upstream_namespace(binding.get("model_id"))
+        if pool_key:
+            return pool_key
+        conn = connections.get(binding.get("connection_id") or "", {})
+        return str(conn.get("account_ref") or conn.get("connection_id") or "").lower()
+
     def _in_flight_by_upstream(
         self,
         bindings_by_id: Mapping[str, Mapping[str, Any]],
         connections: Mapping[str, Mapping[str, Any]],
+        *,
+        exclude_task_id: str | None = None,
     ) -> dict[str, int]:
-        """Count active RUNNING tasks grouped by physical upstream pool (#1533)."""
+        """Count active RUNNING or claimed tasks grouped by physical upstream pool (#1533)."""
         task_store = getattr(self, "_task_store", None)
         conn = getattr(task_store, "_conn", None)
         if conn is None:
             return {}
-        from .routing_inputs import upstream_namespace
+        now_ms = int(time.time() * 1000)
         counts: dict[str, int] = {}
         try:
             with task_store._lock:
-                rows = conn.execute(
-                    "SELECT binding_ref FROM tasks WHERE status = 'RUNNING' AND binding_ref != ''"
-                ).fetchall()
+                has_claims = conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'platform_coordinator_claims'"
+                ).fetchone()
+                if has_claims:
+                    rows = conn.execute(
+                        "SELECT id, binding_ref FROM tasks WHERE status = 'RUNNING' AND binding_ref != '' "
+                        "UNION "
+                        "SELECT t.id, t.binding_ref FROM tasks t "
+                        "JOIN platform_coordinator_claims c ON c.task_id = t.id "
+                        "WHERE c.status = 'ACTIVE' AND c.expires_at_ms > ? AND t.binding_ref != ''",
+                        (now_ms,),
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        "SELECT id, binding_ref FROM tasks WHERE status = 'RUNNING' AND binding_ref != ''"
+                    ).fetchall()
         except Exception:  # noqa: BLE001
             return {}
         for row in rows:
+            if exclude_task_id and str(row["id"] or "") == exclude_task_id:
+                continue
             bref = str(row["binding_ref"] or "")
             binding = bindings_by_id.get(bref)
             if not binding:
                 continue
-            pool_key = upstream_namespace(binding.get("model_id"))
-            if not pool_key:
-                c = connections.get(binding.get("connection_id") or "", {})
-                pool_key = str(c.get("account_ref") or c.get("connection_id") or "").lower()
+            pool_key = self._binding_pool_key(binding, connections)
             if pool_key:
                 counts[pool_key] = counts.get(pool_key, 0) + 1
         return counts
@@ -1453,6 +1479,25 @@ class CombinedTrustedHost:
                 raise TaskStoreError("QUOTA_WAIT:binding_unknown")
             return
         connection = self._store.get_connection_public(binding["connection_id"])
+        from .routing_inputs import effective_pool_limits, read_overrides
+        try:
+            owner_overrides = read_overrides(getattr(self._store, "_state_path", None))
+        except ValueError:
+            owner_overrides = {}
+        pool_limits = effective_pool_limits(owner_overrides)
+        all_bindings = self._store.list_bindings_public()
+        bindings_by_id = {b["binding_id"]: b for b in all_bindings}
+        conns_by_id = {c["connection_id"]: c for c in self._store.list_connections_public()}
+        pool_key = self._binding_pool_key(binding, conns_by_id)
+        pool_limit = (pool_limits.get(pool_key) or {}).get("max_in_flight")
+        if isinstance(pool_limit, int) and pool_limit > 0:
+            in_flight = self._in_flight_by_upstream(
+                bindings_by_id,
+                conns_by_id,
+                exclude_task_id=task.id,
+            ).get(pool_key, 0)
+            if in_flight >= pool_limit:
+                raise TaskStoreError(f"QUOTA_WAIT:pool_concurrency_limit:{pool_key}:{in_flight}/{pool_limit}")
         feedback_identity = ({"binding_ref": binding["binding_id"],
                               "account_ref": connection.get("account_ref") or connection["connection_id"]}
                              if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1" else None)

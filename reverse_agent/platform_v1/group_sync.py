@@ -44,14 +44,22 @@ def _is_healthy_provider_accounts(accounts: Sequence[Mapping[str, Any]]) -> tupl
             reasons.append(state.lower())
             continue
         windows = account.get("windows") or ()
-        rem_vals = [
-            float(w["remaining_percent"])
-            for w in windows
-            if isinstance(w, Mapping)
-            and isinstance(w.get("remaining_percent"), (int, float))
-            and not isinstance(w.get("remaining_percent"), bool)
-        ]
-        if rem_vals and max(rem_vals) <= 0.0:
+        exhausted_window = False
+        for w in windows:
+            if not isinstance(w, Mapping) or w.get("reset_passed"):
+                continue
+            rem = w.get("remaining_percent")
+            if isinstance(rem, (int, float)) and not isinstance(rem, bool):
+                remaining = float(rem)
+            else:
+                used = w.get("used_percent")
+                if not isinstance(used, (int, float)) or isinstance(used, bool):
+                    continue
+                remaining = 100.0 - float(used)
+            if remaining <= 0.0:
+                exhausted_window = True
+                break
+        if exhausted_window:
             reasons.append("quota_exhausted")
             continue
         any_usable = True

@@ -63,3 +63,35 @@ def test_group_sync_excludes_paid_subscriptions_and_unhealthy_accounts_and_order
     removed = {entry["member"]: entry["reason"] for entry in result["diff"]["removed_unhealthy"]}
     assert "zcode/glm-5.3" in removed
     assert removed["workbuddy-ai/glm-5.3"] == "quota_exhausted"
+
+
+def test_group_sync_rejects_account_when_any_mandatory_window_is_exhausted() -> None:
+    models_payload = {
+        "object": "list",
+        "data": [
+            {"id": "raccoon/glm-5.3"},
+            {"id": "workbuddy/glm-5.3"},
+            {"id": "trae-cn/glm-5.3"},
+        ],
+    }
+    quotas_snapshot = {
+        "accounts": [
+            {
+                "provider": "raccoon",
+                "state": "FRESH",
+                "windows": [
+                    {"name": "Weekly", "remaining_percent": 0.0},
+                    {"name": "Daily pool", "remaining_percent": 80.0},
+                ],
+            },
+            {"provider": "workbuddy", "state": "FRESH", "windows": [{"name": "Credits", "remaining_percent": 50.0}]},
+            {"provider": "trae-cn", "state": "FRESH", "windows": [{"name": "Credits", "remaining_percent": 40.0}]},
+        ]
+    }
+    result = plan_group_sync(models_payload, quotas_snapshot)
+    assert result["groups"]["group/nerelan-glm-5-3"]["members"] == [
+        "trae-cn/glm-5.3",
+        "workbuddy/glm-5.3",
+    ]
+    removed = {entry["member"]: entry["reason"] for entry in result["diff"]["removed_unhealthy"]}
+    assert removed["raccoon/glm-5.3"] == "quota_exhausted"
