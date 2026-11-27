@@ -3775,3 +3775,26 @@ def test_run_owned_cli_process_closes_stdin_to_prevent_eof_hang(tmp_path):
     )
     assert owned.returncode == 0 and not owned.timed_out
     assert json.loads(owned.stdout.strip()) == {"stdin_len": 0}
+
+
+def test_normalize_usage_metrics_separates_confirmed_zero_from_unpriced():
+    from reverse_agent.platform_v1.opencode_executor import _normalize_usage_metrics
+
+    tokens_nz = {"input": 100, "output": 20, "reasoning": 0, "cache": {"read": 0, "write": 0}}
+    unpriced_zero = _normalize_usage_metrics(tokens_nz, 0)
+    assert unpriced_zero["status"] == "OBSERVED"
+    assert unpriced_zero["input_units"] == 100
+    assert unpriced_zero["cost_micro_units"] is None
+
+    unpriced_none = _normalize_usage_metrics(tokens_nz, None)
+    assert unpriced_none["status"] == "OBSERVED"
+    assert unpriced_none["cost_micro_units"] is None
+
+    tokens_zero = {"input": 0, "output": 0, "reasoning": 0, "cache": {"read": 0, "write": 0}}
+    confirmed_zero = _normalize_usage_metrics(tokens_zero, 0)
+    assert confirmed_zero["status"] == "OBSERVED"
+    assert confirmed_zero["cost_micro_units"] == 0
+
+    priced = _normalize_usage_metrics(tokens_nz, 0.123456)
+    assert priced["status"] == "OBSERVED"
+    assert priced["cost_micro_units"] == 123456
