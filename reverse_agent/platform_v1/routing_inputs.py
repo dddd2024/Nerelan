@@ -40,6 +40,24 @@ GATEWAY_COST_CLASSES = {
     "claude": "subscription",
 }
 
+# Conservative physical-pool concurrency caps (#1533) preventing rate-limited free/credit
+# gateways from colliding into 429 bursts; Owner can override per-pool in `pool_limits`.
+DEFAULT_POOL_LIMITS: dict[str, dict[str, int]] = {
+    pool: {"max_in_flight": 1}
+    for pool in (
+        "opencode-zen-free",
+        "token-sensenova",
+        "sensenova",
+        "sensetime",
+        "agnes",
+        "trae-cn",
+        "workbuddy",
+        "workbuddy-ai",
+        "raccoon",
+        "minimax-code",
+    )
+}
+
 # Magpie routing ids (Owner decision 2026-11-17, "route by Magpie group, not account"):
 # ``group/<id>`` names an Owner-created routing group whose members are several
 # accounts serving the same model, and ``auto/<id>`` names Magpie's auto-router.
@@ -306,6 +324,47 @@ def explicit_cost_class(binding: Mapping[str, Any], connection: Mapping[str, Any
             or _owner_cost(owner, "connections", binding.get("connection_id")) or "")
 
 
+def _owner_multiplier(owner: Mapping[str, Any] | None, section: str, key: Any) -> float | None:
+    if not isinstance(owner, Mapping) or not isinstance(key, str) or not key:
+        return None
+    entries = owner.get(section)
+    if not isinstance(entries, Mapping):
+        return None
+    value = entries.get(key)
+    if value is None:
+        lowered = key.lower()
+        value = next((entry for name, entry in entries.items()
+                      if isinstance(name, str) and name.lower() == lowered), None)
+    if isinstance(value, Mapping):
+        mult = value.get("credit_multiplier")
+        if type(mult) in (int, float) and math.isfinite(mult) and mult > 0:
+            return float(mult)
+    return None
+
+
+def credit_multiplier_for(binding: Mapping[str, Any], owner: Mapping[str, Any] | None) -> float:
+    """Positive real credit multiplier for a binding/model from Owner overrides (default 1.0)."""
+    binding = binding or {}
+    model_id = binding.get("model_id") if isinstance(binding.get("model_id"), str) else ""
+    found = _owner_multiplier(owner, "bindings", binding.get("binding_id"))
+    if found is None:
+        found = _owner_multiplier(owner, "models", model_id)
+    return found if found is not None else 1.0
+
+
+def effective_pool_limits(owner: Mapping[str, Any] | None) -> dict[str, dict[str, int]]:
+    """Merged default physical-pool concurrency limits plus any Owner ``pool_limits``."""
+    merged: dict[str, dict[str, int]] = {k: dict(v) for k, v in DEFAULT_POOL_LIMITS.items()}
+    raw = (owner or {}).get("pool_limits")
+    if isinstance(raw, Mapping):
+        for pool, entry in raw.items():
+            if isinstance(pool, str) and pool.strip() and isinstance(entry, Mapping):
+                cap = entry.get("max_in_flight")
+                if type(cap) is int and cap > 0:
+                    merged[pool.strip().lower()] = {"max_in_flight": cap}
+    return merged
+
+
 def binding_cost_class(binding: Mapping[str, Any], connection: Mapping[str, Any], owner: Mapping[str, Any]) -> str:
     """Resolve a binding's cost class with explicit Owner precedence.
 
@@ -399,12 +458,34 @@ def read_overrides(state_path: Path | None) -> dict[str, Any]:
         for key in ("allowed_content", "denied_content"):
             if key in override and (not isinstance(override[key], list) or any(not isinstance(x, str) for x in override[key])):
                 raise ValueError("invalid_model_routing_overrides")
+        if "credit_multiplier" in override and (
+            type(override["credit_multiplier"]) not in (int, float)
+            or not math.isfinite(override["credit_multiplier"])
+            or override["credit_multiplier"] <= 0
+        ):
+            raise ValueError("invalid_model_routing_overrides")
     for section in ("connections", "models"):
         entries = data.get(section, {})
-        if (not isinstance(entries, dict) or any(
-                not isinstance(name, str) or not name or _cost_entry(value) is None
-                for name, value in entries.items())):
+        if not isinstance(entries, dict):
             raise ValueError("invalid_model_routing_overrides")
+        for name, value in entries.items():
+            if not isinstance(name, str) or not name:
+                raise ValueError("invalid_model_routing_overrides")
+            if section == "models" and isinstance(value, Mapping) and "credit_multiplier" in value:
+                mult = value["credit_multiplier"]
+                if type(mult) not in (int, float) or not math.isfinite(mult) or mult <= 0:
+                    raise ValueError("invalid_model_routing_overrides")
+                if "cost_class" not in value:
+                    continue
+            if _cost_entry(value) is None:
+                raise ValueError("invalid_model_routing_overrides")
+    pool_limits = data.get("pool_limits", {})
+    if not isinstance(pool_limits, dict) or any(
+        not isinstance(pool, str) or not pool.strip() or not isinstance(cfg, Mapping)
+        or type(cfg.get("max_in_flight")) is not int or cfg["max_in_flight"] <= 0
+        for pool, cfg in pool_limits.items()
+    ):
+        raise ValueError("invalid_model_routing_overrides")
     paid = data.get("paid_api_windows", [])
     if not isinstance(paid, list) or any(not isinstance(v, str) or not v for v in paid):
         raise ValueError("invalid_model_routing_overrides")

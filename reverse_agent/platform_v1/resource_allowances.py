@@ -39,6 +39,7 @@ ALLOWANCE_HORIZON_SECONDS = 86400
 ALLOWANCE_BASE_BONUS = .05
 ALLOWANCE_URGENCY_BONUS = .25
 CREDIT_URGENCY_BONUS = .5
+DAILY_POOL_URGENCY_BONUS = .20
 
 _MODEL_TOKENS = re.compile(
     r"\s*(?P<model>[A-Za-z0-9][A-Za-z0-9 ._:-]{0,120}?)\s+tokens(?:\s*\((?:est\.?|estimated)\))?\s*", re.I)
@@ -95,6 +96,16 @@ def read_allowances(snapshot: Mapping[str, Any] | None, *, now: float) -> dict[s
                     result["credits"][provider] = {"provider": provider, "window": window["name"],
                                                    "runs_out_at": runs_out_at, "runs_out": runs_out,
                                                    "account_ref": account.get("account_ref")}
+            if ("daily" in window["name"].lower() and remaining is not None
+                    and remaining > ALLOWANCE_RESERVE_PERCENT and window.get("unlimited") is not True
+                    and (resets_at is None or resets_at > now)):
+                daily_map = result.setdefault("daily_pools", {})
+                prev = daily_map.get(provider)
+                if prev is None or (resets_at is not None and (prev.get("resets_at") is None or resets_at < prev["resets_at"])):
+                    daily_map[provider] = {"provider": provider, "window": window["name"],
+                                           "remaining_percent": remaining, "resets_at": resets_at,
+                                           "limit": _number(window.get("limit")),
+                                           "account_ref": account.get("account_ref")}
             match = _MODEL_TOKENS.fullmatch(window["name"])
             if match is None or remaining is None or window.get("unlimited") is True:
                 continue
@@ -156,6 +167,9 @@ def effective_cost(binding: Mapping[str, Any], connection: Mapping[str, Any], ow
     credit = (allowances.get("credits") or {}).get(provider)
     if credit and cost_class in {"free", "subscription"}:
         resources["credit_expiry"] = {key: credit.get(key) for key in ("window", "runs_out_at", "runs_out")}
+    daily = (allowances.get("daily_pools") or {}).get(provider)
+    if daily and cost_class in {"free", "subscription"}:
+        resources["daily_pool"] = {key: daily.get(key) for key in ("window", "remaining_percent", "resets_at", "limit")}
     return cost_class, resources
 
 
@@ -178,4 +192,10 @@ def urgency(resources: Mapping[str, Any] | None, *, now: float) -> float:
     credit = resources.get("credit_expiry")
     if credit and type(credit.get("runs_out_at")) in (int, float):
         bonus += CREDIT_URGENCY_BONUS * _approach(credit["runs_out_at"] - now, CREDIT_HORIZON_SECONDS)
-    return round(bonus, 6)
+    daily = resources.get("daily_pool")
+    if daily:
+        bonus += ALLOWANCE_BASE_BONUS
+        resets_at = daily.get("resets_at")
+        if type(resets_at) in (int, float):
+            bonus += DAILY_POOL_URGENCY_BONUS * _approach(resets_at - now, ALLOWANCE_HORIZON_SECONDS)
+    return round(min(0.95, bonus), 6)

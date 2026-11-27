@@ -748,8 +748,14 @@ class CombinedTrustedHost:
             raise TaskStoreError("model_review_artifact_input_required")
         import random
         from .model_router import capability, select_model, served_model
-        from .routing_inputs import inherit_group_availability, paced_group_provider
-        from .routing_inputs import read_overrides, weekly_pace_config
+        from .routing_inputs import (
+            credit_multiplier_for,
+            effective_pool_limits,
+            inherit_group_availability,
+            paced_group_provider,
+            read_overrides,
+            weekly_pace_config,
+        )
         from .routing_capabilities import read_capability_table
         try:
             owner = read_overrides(getattr(self._store, "_state_path", None))
@@ -795,6 +801,8 @@ class CombinedTrustedHost:
         from .resource_allowances import effective_cost
         allowances = self._resource_allowances(refresh=not forecast)
         allowance_now = time.time()
+        in_flight_by_upstream = None if forecast else self._in_flight_by_upstream(by_id, connections)
+        pool_limits = effective_pool_limits(owner)
         for binding in bindings:
             connection = connections.get(binding["connection_id"], {})
             native = connection.get("auth_method") == "external_cli_session"
@@ -866,6 +874,7 @@ class CombinedTrustedHost:
                                "paced_provider": paced_provider,
                                # Where the weekly figure came from, or why there is none.
                                "weekly_pace_input": pace_input,
+                               "credit_multiplier": credit_multiplier_for(binding, owner),
                                "cost_class": cost_class, "resources": resources}
             # Evaluate the same pure hard filters before spending a probe. A
             # catalog entry excluded by scope, quota or calibration costs no call.
@@ -920,7 +929,9 @@ class CombinedTrustedHost:
                                 account_feedback=feedback, weekly_pace=weekly_pace_config(owner),
                                 avoid_bindings=tuple(avoid_bindings),
                                 stall_tier=stall_tier if avoid_bindings and type(stall_tier) is int else 0,
-                                groups=owner.get("groups", {}), window_pool=pool_refs)
+                                groups=owner.get("groups", {}), window_pool=pool_refs,
+                                in_flight_by_upstream=in_flight_by_upstream,
+                                pool_limits=pool_limits)
             decision["context_packet_reservation"] = 16384 + 256
             if window_pool is not None:
                 decision["pool_source"] = window_pool["pool_source"]
@@ -937,6 +948,38 @@ class CombinedTrustedHost:
                 error.decision["pool_source"] = window_pool["pool_source"]
                 error.decision["pool_size"] = len(pool_refs)
             raise error from exc
+
+    def _in_flight_by_upstream(
+        self,
+        bindings_by_id: Mapping[str, Mapping[str, Any]],
+        connections: Mapping[str, Mapping[str, Any]],
+    ) -> dict[str, int]:
+        """Count active RUNNING tasks grouped by physical upstream pool (#1533)."""
+        task_store = getattr(self, "_task_store", None)
+        conn = getattr(task_store, "_conn", None)
+        if conn is None:
+            return {}
+        from .routing_inputs import upstream_namespace
+        counts: dict[str, int] = {}
+        try:
+            with task_store._lock:
+                rows = conn.execute(
+                    "SELECT binding_ref FROM tasks WHERE status = 'RUNNING' AND binding_ref != ''"
+                ).fetchall()
+        except Exception:  # noqa: BLE001
+            return {}
+        for row in rows:
+            bref = str(row["binding_ref"] or "")
+            binding = bindings_by_id.get(bref)
+            if not binding:
+                continue
+            pool_key = upstream_namespace(binding.get("model_id"))
+            if not pool_key:
+                c = connections.get(binding.get("connection_id") or "", {})
+                pool_key = str(c.get("account_ref") or c.get("connection_id") or "").lower()
+            if pool_key:
+                counts[pool_key] = counts.get(pool_key, 0) + 1
+        return counts
 
     def _live_window_pool(self) -> list[dict[str, Any]]:
         """Bindings a continuous Owner window's Goals may run on now (Owner decision 2026-11-17, #1667)."""
