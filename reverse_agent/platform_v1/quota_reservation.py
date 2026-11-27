@@ -163,18 +163,84 @@ def task_need(records: Iterable[Mapping[str, Any]], *, binding: str, kind: str,
             "samples": len(values),
         }
     cold_miss_fraction = 1.0 if cold else 0.0
-    if cold:
+    if cold and cold_turn_split and rows:
+        def _row_frac(row: Mapping[str, Any]) -> float:
+            tc = row.get("turn_count")
+            return (1.0 / max(1.0, float(tc))) if (_number(tc) and tc > 1) else 1.0
+
+        row_fracs = sorted(_row_frac(r) for r in rows)
+        cold_miss_fraction = median(row_fracs)
+        adj_in_vals: list[float] = []
+        adj_cr_vals: list[float] = []
+        sample_costs: list[float] = []
+        for r in rows:
+            tok = r["tokens"]
+            r_in = float(tok["input"]) if _number(tok.get("input")) else None
+            r_cr = float(tok["cache_read"]) if _number(tok.get("cache_read")) else 0.0
+            frac = _row_frac(r)
+            shifted = r_cr * frac
+            if r_in is not None:
+                adj_in_vals.append(r_in + shifted + cold_input)
+            adj_cr_vals.append(r_cr - shifted)
+            sample_tok = {
+                k: float(tok[k]) if _number(tok.get(k)) else float(prior[k])
+                for k in DEFAULT_PRIOR if k != "turn_count"
+            }
+            if r_in is not None:
+                sample_tok["input"] = r_in + shifted + cold_input
+            else:
+                sample_tok["input"] = prior["input"] + shifted + cold_input
+            sample_tok["cache_read"] = max(0.0, r_cr - shifted)
+            eq = pricing.equivalent_cost(model, sample_tok).get("usd")
+            if _number(eq):
+                sample_costs.append(float(eq))
+
+        if adj_in_vals:
+            s_in = sorted(adj_in_vals)
+            estimates["input"]["median"] = (
+                max(median(s_in), prior["input"] + cold_input) if len(s_in) < min_samples else median(s_in)
+            )
+            estimates["input"]["p80"] = (
+                max(quota_forecast._quantile(s_in, .8), prior["input"] * 1.5 + cold_input)
+                if len(s_in) < min_samples else quota_forecast._quantile(s_in, .8)
+            )
+        else:
+            estimates["input"]["median"] += cold_input
+            estimates["input"]["p80"] += cold_input
+        if adj_cr_vals:
+            s_cr = sorted(adj_cr_vals)
+            estimates["cache_read"]["median"] = median(s_cr)
+            estimates["cache_read"]["p80"] = quota_forecast._quantile(s_cr, .8)
+        prior_units = {
+            q: pricing.equivalent_cost(model, {k: v[q] for k, v in estimates.items() if k != "turn_count"}).get("usd")
+            for q in ("median", "p80")
+        }
+        if sample_costs and len(rows) >= min_samples:
+            s_cost = sorted(sample_costs)
+            units = {
+                "median": median(s_cost),
+                "p80": max(median(s_cost), quota_forecast._quantile(s_cost, .8)),
+            }
+        else:
+            s_cost = sorted(sample_costs)
+            units = {
+                "median": max(median(s_cost), prior_units["median"]) if s_cost and _number(prior_units["median"]) else prior_units["median"],
+                "p80": max(quota_forecast._quantile(s_cost, .8), prior_units["p80"]) if s_cost and _number(prior_units["p80"]) else prior_units["p80"],
+            }
+            if _number(units.get("median")) and _number(units.get("p80")):
+                units["p80"] = max(units["p80"], units["median"])
+    elif cold:
         for q in ("median", "p80"):
-            turns = estimates["turn_count"][q]
-            frac = (1.0 / max(1.0, float(turns))) if (cold_turn_split and _number(turns) and turns > 1) else 1.0
-            if q == "median":
-                cold_miss_fraction = frac
-            shifted = estimates["cache_read"][q] * frac
+            shifted = estimates["cache_read"][q]
             estimates["input"][q] += shifted + cold_input
-            estimates["cache_read"][q] = estimates["cache_read"][q] - shifted
-    units = {q: pricing.equivalent_cost(model, {k: v[q] for k, v in estimates.items()
-                                               if k != "turn_count"}).get("usd")
-             for q in ("median", "p80")}
+            estimates["cache_read"][q] = 0.0
+        units = {q: pricing.equivalent_cost(model, {k: v[q] for k, v in estimates.items()
+                                                   if k != "turn_count"}).get("usd")
+                 for q in ("median", "p80")}
+    else:
+        units = {q: pricing.equivalent_cost(model, {k: v[q] for k, v in estimates.items()
+                                                   if k != "turn_count"}).get("usd")
+                 for q in ("median", "p80")}
     return {"binding": binding, "kind": kind, "difficulty": difficulty, "model": model,
             "estimated_at": quota_forecast.iso(now),
             "policy": {"prior": dict(prior), "min_samples": min_samples, "cold_gap": cold_gap, "cold_input": cold_input},

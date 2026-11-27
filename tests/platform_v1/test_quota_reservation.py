@@ -962,6 +962,18 @@ def test_cold_turn_split_and_calibration_aging_shrinkage_and_outlier_guard():
     assert split["tokens"]["input"]["median"] == pytest.approx(100 + 100 + 1000)
     assert split["tokens"]["cache_read"]["median"] == pytest.approx(300)
 
+    # Mixed turn counts [1, 1, 1, 100, 100] must keep p80 >= median (never inverse-divide p80 below median).
+    mixed = [{
+        "binding_ref": "b", "kind": "code", "difficulty": "easy", "ok": True,
+        "tokens": {"input": 1000, "cache_read": 1_000_000, "output": 1000},
+        "turn_count": tc, "observed_at": "2026-11-01T00:00:00Z",
+    } for tc in (1, 1, 1, 100, 100)]
+    mixed_need = reservation.task_need(
+        mixed, binding="b", kind="code", difficulty="easy", model="gpt-6.1-sol",
+        clock=lambda: 2_000_000_000.0, cold_gap=3600, cold_input=0, cold_turn_split=True,
+    )
+    assert mixed_need["units"]["p80"] >= mixed_need["units"]["median"]
+
     # Reproduction of live c38efd6a74a2 failure: single 2026-11-14 lower-bound sample (13 days old)
     # must expire cleanly back to conservative uncalibrated prior rather than locking at 324% -> 90%.
     stale_now = reservation.quota_forecast.parse_time("2026-11-27T06:00:00Z")

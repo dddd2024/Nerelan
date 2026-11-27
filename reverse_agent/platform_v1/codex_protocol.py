@@ -348,8 +348,9 @@ class CodexJsonl:
         # model prose or tool output. Missing metadata remains unknown.
         if kind in {"thread.started", "turn.started", "turn.completed", "turn_context", "session_meta"}:
             payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
-            model = event.get("model") if "model" in event else payload.get("model")
-            if model is not None:
+            has_model = "model" in event or (kind in {"turn_context", "session_meta"} and "model" in payload)
+            if has_model:
+                model = event["model"] if "model" in event else payload.get("model")
                 if not isinstance(model, str) or not re.fullmatch(r"[A-Za-z0-9._:/@-]{1,200}", model):
                     raise CodexProtocolError("codex_model_identity_invalid")
                 if model not in self.turn.models:
