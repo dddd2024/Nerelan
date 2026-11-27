@@ -84,10 +84,14 @@ def fast_path_eligible(
         diff_val = difficulty
 
     reasons: list[str] = []
-    if diff_val is not None and diff_val > 3:
+    if diff_val is None:
+        reasons.append("unknown_difficulty")
+    elif diff_val > 3:
         reasons.append(f"difficulty_{diff_val}_gt_3")
     paths = [str(p).strip().replace("\\", "/") for p in changed_paths if isinstance(p, str) and p.strip()]
-    if len(paths) > 4:
+    if not paths:
+        reasons.append("unknown_scope_paths")
+    elif len(paths) > 4:
         reasons.append("too_many_changed_paths")
     for p in paths:
         if any(fnmatch.fnmatchcase(p, pat) for pat in r2_patterns):

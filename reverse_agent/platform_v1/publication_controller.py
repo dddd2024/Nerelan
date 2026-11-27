@@ -29,6 +29,38 @@ class CommandResult:
 CommandRunner = Callable[[Sequence[str], str], CommandResult]
 
 
+def _round_limit_findings_markdown(store: Any, control_store: Any, goal_id: str) -> str:
+    """Format open review findings recorded at model_review_round_limit for Draft PR handoff."""
+    lines: list[str] = []
+    for link in control_store.list_goal_tasks(goal_id):
+        task_id = link.get("task_id")
+        if not task_id:
+            continue
+        task = store.get_task(task_id)
+        if task.status != "BLOCKED" or task.failure_classification != "model_review_round_limit":
+            continue
+        try:
+            detail = json.loads(task.failure_detail or "{}")
+        except (TypeError, ValueError):
+            continue
+        if detail.get("handoff_action") != "open_draft_pr":
+            continue
+        findings = detail.get("open_findings") or ()
+        if not isinstance(findings, list) or not findings:
+            continue
+        lines.append("\n\n### Open Review Findings (Round Limit Reached)")
+        for item in findings[:6]:
+            if isinstance(item, Mapping):
+                sev = str(item.get("severity") or "unknown").upper()
+                path = str(item.get("path") or "")
+                line = item.get("line")
+                loc = f"{path}:{line}" if path and line else path
+                msg = str(item.get("message") or "").strip()
+                lines.append(f"- [{sev}] {loc}: {msg}" if loc else f"- [{sev}] {msg}")
+        break
+    return "\n".join(lines)
+
+
 class PublicationController:
     def __init__(
         self,
@@ -276,6 +308,7 @@ class PublicationController:
                 status=status, request_digest=request, commit_sha=artifact["commit"],
                 pr_number=int((pr or {}).get("number", 0)), pr_url=str((pr or {}).get("url", "")))
         body = "Retained functionally validated artifact. Independent review pending."
+        body += _round_limit_findings_markdown(self.store, self.control_store, goal_id)
         from .goal_source_issue import source_issue
         from .quick_start import MAX_ISSUE_BODY_CHARS
         number = source_issue(goal)

@@ -743,6 +743,15 @@ class GoalService:
             # The Owner confirmed this window's Goals by name; nothing else is launched into it.
             raise TaskStoreError("owner_window_goal_not_confirmed")
         planned_tasks = tuple(self._normalize_task(raw, seq=seq) for seq, raw in enumerate(goal.tasks))
+        if goal.executor_kind != "deterministic_fixture":
+            from .task_prevalidation import prevalidate_task
+            pv = prevalidate_task({
+                "title": goal.objective,
+                "repository": goal.repository,
+                "context_need": max((item.context_need for item in planned_tasks), default=0),
+            })
+            if not pv["ok"]:
+                raise TaskStoreError("pre_validation_failed:" + ",".join(pv["reasons"]))
         if self.control_store.is_strict_owner_window(window):
             if (goal.orchestration_mode != "single" or len(planned_tasks) != 1
                     or any(other.id != goal.id for other in self.control_store.list_window_goals(window_id))):

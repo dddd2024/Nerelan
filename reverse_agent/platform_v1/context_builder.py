@@ -897,7 +897,7 @@ def build_feedback_section(
     *,
     max_chars: int = 2400,
 ) -> tuple[str, dict[str, int]]:
-    """Build bounded review/fixup feedback block and measure real byte savings."""
+    """Build bounded review/fixup feedback block, preserving finding semantics and valid JSON."""
     out = ""
     raw_total = 0
     comp_total = 0
@@ -905,21 +905,51 @@ def build_feedback_section(
         raw_repair = json.dumps(repair, sort_keys=True)
         raw_total += len(raw_repair.encode("utf-8"))
         compact_repair = dict(repair)
-        if len(raw_repair) > max_chars and isinstance(compact_repair.get("findings"), list):
-            trimmed = []
-            for f in compact_repair["findings"][:6]:
+        raw_findings = compact_repair.get("findings")
+        if len(raw_repair) > max_chars and isinstance(raw_findings, list):
+            severity_rank = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+            compressed_all = []
+            for idx, f in enumerate(raw_findings):
                 if isinstance(f, Mapping):
                     item = dict(f)
                     if isinstance(item.get("message"), str) and len(item["message"]) > 300:
                         msg, _ = _compress_feedback_text(item["message"], max_chars=300)
                         item["message"] = msg
-                    trimmed.append(item)
+                    compressed_all.append((idx, item))
                 else:
-                    trimmed.append(f)
-            compact_repair["findings"] = trimmed
+                    compressed_all.append((idx, f))
+            compact_repair["findings"] = [item for _, item in compressed_all]
+            rendered = json.dumps(compact_repair, sort_keys=True)
+            if len(rendered) > max_chars:
+                # Preserve highest-severity findings first when trimming over budget,
+                # and explicitly record how many findings were omitted (never silent drop).
+                ranked = sorted(
+                    compressed_all,
+                    key=lambda pair: (
+                        severity_rank.get(str((pair[1].get("severity") if isinstance(pair[1], Mapping) else "") or "").lower(), 4),
+                        pair[0],
+                    ),
+                )
+                kept: list[tuple[int, Any]] = []
+                for pair in ranked:
+                    candidate_kept = sorted([*kept, pair], key=lambda p: p[0])
+                    omitted_count = len(compressed_all) - len(candidate_kept)
+                    probe = dict(compact_repair)
+                    probe["findings"] = [p[1] for p in candidate_kept]
+                    if omitted_count > 0:
+                        probe["omitted_findings"] = omitted_count
+                    else:
+                        probe.pop("omitted_findings", None)
+                    if len(json.dumps(probe, sort_keys=True)) <= max_chars or not kept:
+                        kept = candidate_kept
+                    else:
+                        break
+                kept_sorted = [p[1] for p in sorted(kept, key=lambda p: p[0])]
+                omitted = len(compressed_all) - len(kept_sorted)
+                compact_repair["findings"] = kept_sorted
+                if omitted > 0:
+                    compact_repair["omitted_findings"] = omitted
         rendered = json.dumps(compact_repair, sort_keys=True)
-        if len(rendered) > max_chars:
-            rendered, _ = _compress_feedback_text(rendered, max_chars=max_chars)
         comp_total += len(rendered.encode("utf-8"))
         out += "\nVerified review feedback (data):\n" + rendered
     if fixup is not None:

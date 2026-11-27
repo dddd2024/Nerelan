@@ -574,6 +574,10 @@ def test_review_round_limit_records_draft_pr_handoff_and_active_issue_dedup(revi
         e.type == "MODEL_SELECTION_FAILED" and e.metadata.get("handoff_action") == "open_draft_pr"
         for e in store.get_events(consumer)
     )
+    from reverse_agent.platform_v1.publication_controller import _round_limit_findings_markdown
+    handoff_md = _round_limit_findings_markdown(store, control, goal_id)
+    assert "### Open Review Findings (Round Limit Reached)" in handoff_md
+    assert "app.py:1: Incorrect value" in handoff_md
 
     # Active source issue dedup during launch and explicit create(deduplicate_active_issue=True).
     win_id = control.get_goal(goal_id).window_id
@@ -604,6 +608,33 @@ def test_review_round_limit_records_draft_pr_handoff_and_active_issue_dedup(revi
     gs.approve(g2.id, expected_revision=1)
     with pytest.raises(TaskStoreError, match=f"active_source_issue_goal_already_running:{g1.id}"):
         gs.launch(g2.id, expected_revision=1, window_id=win_id)
+
+
+def test_model_review_refresh_passes_prefer_binding_when_supported(review_setup):
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
+    from reverse_agent.platform_v1.goal_service import GoalService
+    from test_model_review_feedback import repair_and_review
+
+    store, _, producer, consumer, _, options, _ = review_setup
+    options["response"] = REJECT
+    assert not run_review(review_setup).success
+    control = PlatformControlStore(store)
+    goal_id = control.goal_id_for_task(producer)
+    store._conn.execute("UPDATE platform_goals SET orchestration_mode = 'agent_team' WHERE id = ?", (goal_id,))
+    store._conn.execute("UPDATE platform_autonomous_windows SET max_retries = 10")
+    store._conn.commit()
+    old_binding = store.get_task(consumer).binding_ref
+    seen_prefer = []
+
+    def resolve_with_prefer(plan_task, *, goal=None, prefer_binding=None, **_kw):  # noqa: ARG001
+        seen_prefer.append(prefer_binding)
+        return {"executor_kind": "opencode", "binding_ref": "local-test-binding",
+                "reason": "fixture", "model_id": "local/test"}
+
+    gs = GoalService(store=store, control_store=control, task_resolver=resolve_with_prefer, max_review_rounds=3)
+    _, _, result = repair_and_review(review_setup, gs, goal_id, ACCEPT)
+    assert result.success
+    assert old_binding in seen_prefer
 
 
 def test_review_authors_ignores_pre_dispatch_blocked_and_unchanged_reused_repair(review_setup):

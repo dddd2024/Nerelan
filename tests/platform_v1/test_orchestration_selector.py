@@ -334,3 +334,9 @@ def test_fast_path_eligible_guards_r2_and_high_difficulty():
 
     r2 = fast_path_eligible({"difficulty": 1}, changed_paths=[".github/workflows/ci.yml"])
     assert r2["eligible"] is False and r2["recommended_mode"] == "sequential_team"
+
+    empty_scope = fast_path_eligible({"difficulty": 1}, changed_paths=[])
+    assert empty_scope["eligible"] is False and "unknown_scope_paths" in empty_scope["reasons"]
+
+    no_diff = fast_path_eligible({}, changed_paths=["a.py"])
+    assert no_diff["eligible"] is False and "unknown_difficulty" in no_diff["reasons"]

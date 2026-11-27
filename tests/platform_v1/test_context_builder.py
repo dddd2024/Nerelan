@@ -398,3 +398,19 @@ def test_feedback_compression_dedupes_lines_and_reports_saved_bytes():
     )
     assert "Verified review feedback" in section and "Contract fixup feedback" in section
     assert sec_stats["saved_bytes"] > 0
+
+    # 8 findings over budget must remain valid JSON, prioritize critical/high, and never drop silently.
+    findings_8 = [
+        {"path": "crit.py", "line": 1, "severity": "high", "message": "high-1 " + ("a " * 60)},
+        {"path": "crit2.py", "line": 2, "severity": "high", "message": "high-2 " + ("b " * 60)},
+        *[
+            {"path": f"low_{i}.py", "line": i + 10, "severity": "low", "message": f"verbose advisory {i} " + ("detail " * 80)}
+            for i in range(6)
+        ],
+    ]
+    sec8, _ = build_feedback_section({"review_task_id": "r8", "findings": findings_8}, None, max_chars=900)
+    payload_str = sec8.split("Verified review feedback (data):\n", 1)[1]
+    parsed = json.loads(payload_str)
+    kept_paths = {f["path"] for f in parsed["findings"]}
+    assert {"crit.py", "crit2.py"}.issubset(kept_paths)
+    assert len(parsed["findings"]) + parsed.get("omitted_findings", 0) == 8
