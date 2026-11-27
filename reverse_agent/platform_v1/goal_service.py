@@ -562,7 +562,9 @@ class GoalService:
         cursor = getattr(self, "_closed_source_reconcile_cursor", None)
         superseded: list[str] = []
         examined = 0
-        eligible_states = {"DRAFT", "PLANNED", "APPROVED", "RUNNING", "BLOCKED", "COMPLETED"}
+        # Historical COMPLETED goals must never be retroactively rewritten when their
+        # source issues close (e.g. pre-landing_loop completed runs in stopped windows).
+        eligible_states = {"DRAFT", "PLANNED", "APPROVED", "RUNNING", "BLOCKED"}
         last_resume_cursor = cursor
         reached_budget_or_stop = False
 

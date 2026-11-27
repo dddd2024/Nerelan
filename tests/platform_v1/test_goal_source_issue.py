@@ -304,3 +304,35 @@ def test_reconcile_closed_source_goals_respects_stop_event(bed):
     assert len(rest) == 2
     assert set(partial).isdisjoint(rest)
     assert all(bed.control.get_goal(g.id).status == "SUPERSEDED" for g in goals)
+
+
+def test_reconcile_closed_source_goals_preserves_completed_goals_even_without_landing_row(bed, tmp_path):
+    url = f"https://github.com/{REPOSITORY}/issues/1413"
+    objective = f"Resolve {url}\n\n# Historical completed work"
+    dig = hashlib.sha256(objective.encode()).hexdigest()[:16]
+    completed_goal = bed.goals.create({
+        "objective": objective, "repository": REPOSITORY, "executor_kind": "opencode",
+        "orchestration_mode": "agent_team",
+        "idempotency_key": f"quick-start:{REPOSITORY}:issue-1413:{dig}:1",
+    })
+    bed.goals.plan(completed_goal.id, expected_revision=1, tasks=[
+        {"id": "T001", "title": "Implement", "instruction": "Fix the issue", "agent_role": "coder"},
+    ])
+    bed.goals.approve(completed_goal.id, expected_revision=1)
+    bed.goals.launch(completed_goal.id, expected_revision=1, window_id=bed.window.id)
+    [link] = bed.control.list_goal_tasks(completed_goal.id)
+    _finish(bed.store, bed.store.get_task(link["task_id"]), "READY_FOR_REVIEW", "")
+    bed.store._conn.execute("UPDATE platform_goals SET status = 'COMPLETED' WHERE id = ?", (completed_goal.id,))
+    bed.store._conn.commit()
+    bed.control.stop_window(bed.window.id)
+
+    bed.goals.source_issues = GoalSourceIssues(
+        lambda repo, num: {"number": num, "url": f"https://github.com/{repo}/issues/{num}", "state": "CLOSED"}
+    )
+    coordinator = UnattendedCoordinator(
+        store=bed.store, control_store=bed.control, autonomy=bed.autonomy,
+        router=ExecutorRouter(), workspace_root=str(tmp_path), goals=bed.goals,
+    )
+    summary = coordinator.reconcile()
+    assert f"closed_source_goal:{completed_goal.id}" not in summary
+    assert bed.control.get_goal(completed_goal.id).status == "COMPLETED"
