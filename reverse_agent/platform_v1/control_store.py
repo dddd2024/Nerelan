@@ -2964,11 +2964,11 @@ class PlatformControlStore:
                     (window_id,),
                 ).fetchone()
                 task = cur.execute(
-                    "SELECT executor_kind, execution_id, failure_classification FROM tasks WHERE id = ?", (task_id,)
+                    "SELECT executor_kind, execution_id, failure_classification, failure_detail FROM tasks WHERE id = ?", (task_id,)
                 ).fetchone()
                 if window is None or task is None:
                     raise TaskStoreError("budget_reconciliation_subject_missing")
-                observations = cur.execute(
+                all_observations = cur.execute(
                     "SELECT observation.* FROM task_usage_observations AS observation "
                     "LEFT JOIN platform_usage_charges AS charge "
                     "ON charge.observation_id = observation.id "
@@ -2976,6 +2976,19 @@ class PlatformControlStore:
                     "AND charge.observation_id IS NULL ORDER BY observation.created_at, observation.id",
                     (task_id, window_id),
                 ).fetchall()
+                # Positive-identity Magpie reconciliation supersedes local UNKNOWN/PARTIAL
+                # rows of the same execution without double-counting (#1531).
+                magpie_execs = {
+                    o["execution_id"]
+                    for o in all_observations
+                    if o["source_kind"] == "magpie_measured" and o["status"] in {"OBSERVED", "PARTIAL"}
+                }
+                observations = [
+                    o
+                    for o in all_observations
+                    if o["execution_id"] not in magpie_execs
+                    or o["source_kind"] == "magpie_measured"
+                ]
                 owner_window = window["confirmation_mode"] == OWNER_WINDOW_MODE
                 free_route = owner_window and self._task_route_is_free(cur, task_id)
                 token_enforced = int(window["max_token_units"]) > 0
@@ -3003,14 +3016,16 @@ class PlatformControlStore:
                     unknown_count = max(1, unknown_count)
                 usage_unknown = bool(unknown_count)
                 has_partial = any(o["status"] == "PARTIAL" for o in observations)
+                from .real_settlement import is_confirmed_pre_dispatch_zero
                 host_zero = not observations and self._completed_host_checker(task_id)
-                if not observations and task["executor_kind"] != "deterministic_fixture" and not host_zero:
+                pre_dispatch_zero = not observations and is_confirmed_pre_dispatch_zero(cur, task_id, task)
+                if not observations and task["executor_kind"] != "deterministic_fixture" and not host_zero and not pre_dispatch_zero:
                     usage_unknown = True
                     unknown_count = 1
                 token_units = 0
                 cost_micro_units = 0
                 all_costs_known = bool(observations) and cost_unknown_count == 0
-                if not observations and (host_zero or task["executor_kind"] == "deterministic_fixture"):
+                if not observations and (host_zero or pre_dispatch_zero or task["executor_kind"] == "deterministic_fixture"):
                     all_costs_known = True
                 if not usage_unknown:
                     for observation in observations:
@@ -3027,7 +3042,7 @@ class PlatformControlStore:
                         token_units += units
                         if _has_known_cost(observation):
                             cost_micro_units += int(observation["cost_micro_units"] or 0)
-                for observation in observations:
+                for observation in all_observations:
                     cur.execute(
                         "INSERT INTO platform_usage_charges "
                         "(observation_id, window_id, task_id, claim_epoch, charged_at) "
