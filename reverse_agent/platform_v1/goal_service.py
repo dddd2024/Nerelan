@@ -1883,6 +1883,21 @@ class GoalService:
             host_validation = (failed.status == "FAILED"
                                and failed.failure_classification == "deterministic_validation_failure"
                                and bool(cause))
+            if failed.status == "FAILED" and (
+                    failed.failure_classification == "functional_check_not_run" or cause == "functional_check_not_run"):
+                # #1505: runner missing / failed to start with 0 tests judged; park visibly without escalating.
+                held = "automatic_retry_not_allowed:functional_check_not_run"
+                if not any(e.type == "MODEL_SELECTION_FAILED" and e.metadata.get("reason") == held
+                           for e in self.store.get_events(failed.id)):
+                    self.store.add_event(
+                        failed.id,
+                        event_type="MODEL_SELECTION_FAILED",
+                        title="Automatic retry not allowed",
+                        description="Functional check could not run (missing or broken test runner). "
+                                    "Fix the host environment and use Owner retry.",
+                        metadata={"reason": held, "cause": "functional_check_not_run"},
+                    )
+                continue
             if (all_results and not host_validation
                     and (not rows or structured.get("result_digest") != failed.validation_output_digest)):
                 continue

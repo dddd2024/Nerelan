@@ -407,3 +407,14 @@ def test_execution_time_review_not_independent_does_not_loop_escalations(monkeyp
     events = [e for e in store.get_events(review_id) if e.type == "MODEL_SELECTION_FAILED"]
     assert len(events) == 1
     assert events[0].metadata["reason"] == "automatic_retry_not_allowed:review_not_independent"
+
+
+def test_functional_check_not_run_does_not_escalate(monkeypatch):
+    store, control, goals, goal = _launched(monkeypatch)
+    failed_id = _link(control, goal.id, "T001")["task_id"]
+    _fail(store, failed_id, classification="functional_check_not_run")
+    assert goals.escalate_failed_tasks(goal.id) == ()
+    assert goals.escalate_failed_tasks(goal.id) == ()
+    events = [e for e in store.get_events(failed_id) if e.type == "MODEL_SELECTION_FAILED"]
+    assert len(events) == 1
+    assert events[0].metadata["reason"] == "automatic_retry_not_allowed:functional_check_not_run"
