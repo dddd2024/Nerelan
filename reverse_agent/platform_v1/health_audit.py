@@ -510,6 +510,8 @@ def _settlement_basis_breakdown(
             "total": 0,
             "list_price_known_rows": 0,
             "list_price_usd": 0.0,
+            "provider_reported_known_rows": 0,
+            "provider_reported_usd": 0.0,
             "zero_cost_rows": 0,
             "unknown_rows": 0,
         },
@@ -526,8 +528,9 @@ def _settlement_basis_breakdown(
     if "task_usage_observations" in tables:
         cols = _table_columns(conn, "task_usage_observations")
         status_expr = "COALESCE(status, 'UNKNOWN')" if "status" in cols else "'UNKNOWN'"
+        kind_expr = "COALESCE(source_kind, 'unknown')" if "source_kind" in cols else "'unknown'"
         rows = conn.execute(
-            f"SELECT {status_expr} AS st, cost_micro_units FROM task_usage_observations WHERE created_at >= ?",
+            f"SELECT {status_expr} AS st, {kind_expr} AS kind, cost_micro_units FROM task_usage_observations WHERE created_at >= ?",
             (cutoff_iso,),
         ).fetchall()
         obs = summary["usage_observations"]
@@ -538,6 +541,9 @@ def _settlement_basis_breakdown(
                 obs["unknown_rows"] += 1
             elif int(cost) == 0:
                 obs["zero_cost_rows"] += 1
+            elif str(r["kind"]) == "magpie_measured":
+                obs["provider_reported_known_rows"] += 1
+                obs["provider_reported_usd"] = round(obs["provider_reported_usd"] + float(cost) / 1_000_000.0, 6)
             else:
                 obs["list_price_known_rows"] += 1
                 obs["list_price_usd"] = round(obs["list_price_usd"] + float(cost) / 1_000_000.0, 6)

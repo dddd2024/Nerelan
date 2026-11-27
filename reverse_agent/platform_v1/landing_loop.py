@@ -131,6 +131,8 @@ class LandingLoopController:
         if model_review.gate_decision(json.loads(evidence_row["detail"])["result"]) == "REJECT":
             goals._repair_rejected_reviews(goal_id)
             if store.get_task(review.id).status == "BLOCKED":
+                if hasattr(publication, "sync_round_limit_body"):
+                    publication.sync_round_limit_body(task_id, goal_id=goal_id)
                 self.control_store.schedule_landing(state["identity"], expected_phase="WAITING", phase="BLOCKED")
         return self.control_store.get_landing(state["identity"])
 

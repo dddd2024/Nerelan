@@ -198,3 +198,53 @@ def test_the_pr_closes_only_the_issue_its_goal_was_made_from(review_setup, monke
     publication.runner = runner
     publication.publish_artifact(review_setup[2], window_id=goal.window_id, goal_id=goal.id)
     assert len(bodies) == 1 and ("Closes #1438" in bodies[0].splitlines()) is closes
+
+
+def test_sync_round_limit_body_updates_existing_draft_pr(review_setup):
+    from reverse_agent.platform_v1.publication_controller import CommandResult
+
+    publication, control, goal, _remote = artifact_publisher(review_setup)
+    producer = review_setup[2]
+    pr_state = {"body": "Retained functionally validated artifact. Independent review pending."}
+    edits = []
+    base_run = publication.runner
+
+    def runner(argv, cwd):
+        if argv[:3] == ("gh", "pr", "create"):
+            pr_state["body"] = argv[argv.index("--body") + 1]
+            return CommandResult(0)
+        if argv[:3] == ("gh", "pr", "view"):
+            return CommandResult(0, json.dumps({"body": pr_state["body"], "isDraft": True}))
+        if argv[:3] == ("gh", "pr", "edit"):
+            body = argv[argv.index("--body") + 1]
+            pr_state["body"] = body
+            edits.append(body)
+            return CommandResult(0)
+        return base_run(argv, cwd)
+
+    publication.runner = runner
+    publication.publish_artifact(producer, window_id=goal.window_id, goal_id=goal.id)
+
+    review_task = next(
+        row["task_id"] for row in control.list_goal_tasks(goal.id)
+        if row["plan_task_id"] != "A"
+    )
+    control.task_store._conn.execute(
+        "UPDATE tasks SET status = 'BLOCKED', failure_classification = 'model_review_round_limit', "
+        "failure_detail = ? WHERE id = ?",
+        (json.dumps({
+            "open_findings": [{"severity": "high", "title": "Fix missing check", "file": "a.py"}],
+            "omitted_open_findings": 2,
+        }), review_task),
+    )
+    control.task_store._conn.commit()
+
+    assert publication.sync_round_limit_body(producer, goal_id=goal.id) is True
+    assert len(edits) == 1
+    assert "Retained functionally validated artifact" in pr_state["body"]
+    assert "## Review Round-Limit Handoff" in pr_state["body"]
+    assert "Fix missing check" in pr_state["body"]
+    assert "(+2 additional open findings omitted)" in pr_state["body"]
+    # Second call with identical findings is a no-op (idempotent).
+    assert publication.sync_round_limit_body(producer, goal_id=goal.id) is False
+    assert len(edits) == 1

@@ -350,12 +350,26 @@ def test_closed_issue_refs_prevent_cross_repository_collision(tmp_path: Path) ->
 def test_probe_zero_samples_is_unknown_and_settlement_basis_breakdown(tmp_path: Path) -> None:
     db = tmp_path / "tasks.sqlite3"
     conn = _init_db(db)
+    conn.execute("ALTER TABLE task_usage_observations ADD COLUMN status TEXT")
+    conn.execute("ALTER TABLE task_usage_observations ADD COLUMN source_kind TEXT")
     conn.execute(
         """
         CREATE TABLE platform_budget_reservations (
             id TEXT PRIMARY KEY, settlement_json TEXT, updated_at TEXT
         )
         """
+    )
+    conn.execute(
+        "INSERT INTO task_usage_observations VALUES ('u1', 't1', 'p1', 'm1', 100, 0, 0, 120000, ?, 'OBSERVED', 'step_finish')",
+        (RECENT,),
+    )
+    conn.execute(
+        "INSERT INTO task_usage_observations VALUES ('u2', 't2', 'p2', 'm2', 200, 0, 0, 250000, ?, 'OBSERVED', 'magpie_measured')",
+        (RECENT,),
+    )
+    conn.execute(
+        "INSERT INTO task_usage_observations VALUES ('u3', 't3', 'p3', 'm3', 50, 0, 0, 0, ?, 'OBSERVED', 'step_finish')",
+        (RECENT,),
     )
     conn.execute(
         "INSERT INTO platform_budget_reservations VALUES ('b1', ?, ?)",
@@ -438,3 +452,10 @@ def test_probe_zero_samples_is_unknown_and_settlement_basis_breakdown(tmp_path: 
     assert bs["list_price_usd"] == {"rows": 1, "amount": 0.063574}
     assert bs["confirmed_zero"] == {"rows": 1}
     assert bs["unknown"] == {"rows": 1}
+
+    obs = report["settlement_basis_breakdown"]["usage_observations"]
+    assert obs["total"] == 3
+    assert obs["list_price_known_rows"] == 1 and obs["list_price_usd"] == 0.12
+    assert obs["provider_reported_known_rows"] == 1 and obs["provider_reported_usd"] == 0.25
+    assert obs["zero_cost_rows"] == 1
+    assert obs["unknown_rows"] == 0
