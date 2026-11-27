@@ -342,27 +342,155 @@ def _owner_multiplier(owner: Mapping[str, Any] | None, section: str, key: Any) -
     return None
 
 
-def credit_multiplier_for(binding: Mapping[str, Any], owner: Mapping[str, Any] | None) -> float:
-    """Positive real credit multiplier for a binding/model from Owner overrides (default 1.0)."""
+def configured_credit_multiplier_for(binding: Mapping[str, Any], owner: Mapping[str, Any] | None) -> float | None:
+    """Explicit Owner-configured credit multiplier for a binding/model, or None if unconfigured."""
     binding = binding or {}
     model_id = binding.get("model_id") if isinstance(binding.get("model_id"), str) else ""
     found = _owner_multiplier(owner, "bindings", binding.get("binding_id"))
     if found is None:
         found = _owner_multiplier(owner, "models", model_id)
+    return found
+
+
+def credit_multiplier_for(binding: Mapping[str, Any], owner: Mapping[str, Any] | None) -> float:
+    """Positive real credit multiplier for a binding/model from Owner overrides (default 1.0)."""
+    found = configured_credit_multiplier_for(binding, owner)
     return found if found is not None else 1.0
 
 
-def effective_pool_limits(owner: Mapping[str, Any] | None) -> dict[str, dict[str, int]]:
-    """Merged default physical-pool concurrency limits plus any Owner ``pool_limits``."""
-    merged: dict[str, dict[str, int]] = {k: dict(v) for k, v in DEFAULT_POOL_LIMITS.items()}
+def observed_credit_multipliers(
+    usage_rows: Any,
+    *,
+    baseline_credits_per_1m: float | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Aggregate observed credit consumption per model from Magpie/runtime usage rows.
+
+    Distinguishes zero-credit measurements from missing/unmeasured rows (None).
+    """
+    acc: dict[str, dict[str, float]] = {}
+    for row in usage_rows or ():
+        if not isinstance(row, Mapping):
+            continue
+        served = str(row.get("served_model") or row.get("served") or row.get("model") or "").strip().lower()
+        prov = str(row.get("provider") or "").strip().lower()
+        key = served if "/" in served else (f"{prov}/{served}" if prov and served else served)
+        if not key:
+            continue
+        bucket = acc.setdefault(key, {"samples": 0.0, "credit_samples": 0.0, "tokens": 0.0, "credits": 0.0, "explicit_sum": 0.0, "explicit_n": 0.0})
+        bucket["samples"] += 1.0
+        tokens = row.get("tokens") if isinstance(row.get("tokens"), Mapping) else row
+        tok_total = 0.0
+        for field in ("input", "in", "cache_read", "cache_write", "output", "out"):
+            if field == "in" and "input" in tokens:
+                continue
+            if field == "out" and "output" in tokens:
+                continue
+            val = tokens.get(field)
+            if type(val) in (int, float) and math.isfinite(val) and val > 0:
+                tok_total += float(val)
+        cred = row.get("reported_credits")
+        if type(cred) in (int, float) and math.isfinite(cred) and cred >= 0:
+            bucket["credit_samples"] += 1.0
+            bucket["credits"] += float(cred)
+            bucket["tokens"] += tok_total
+        mult = row.get("credit_multiplier")
+        if type(mult) in (int, float) and math.isfinite(mult) and mult > 0:
+            bucket["explicit_sum"] += float(mult)
+            bucket["explicit_n"] += 1.0
+
+    out: dict[str, dict[str, Any]] = {}
+    for key, s in acc.items():
+        cs = int(s["credit_samples"])
+        tok = s["tokens"]
+        credits_per_1m = round(s["credits"] * 1_000_000.0 / tok, 4) if cs > 0 and tok > 0 else None
+        mult: float | None = None
+        if s["explicit_n"] > 0:
+            mult = round(s["explicit_sum"] / s["explicit_n"], 4)
+        elif credits_per_1m is not None and type(baseline_credits_per_1m) in (int, float) and baseline_credits_per_1m > 0:
+            mult = round(credits_per_1m / float(baseline_credits_per_1m), 4)
+        out[key] = {
+            "samples": int(s["samples"]),
+            "credit_samples": cs,
+            "credits_per_1m": credits_per_1m,
+            "multiplier": mult,
+        }
+    return out
+
+
+def resolve_credit_multiplier(
+    binding: Mapping[str, Any],
+    owner: Mapping[str, Any] | None,
+    *,
+    observed_multipliers: Mapping[str, Mapping[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Compare configured vs observed credit multipliers without confusing unknown with zero."""
+    binding = binding or {}
+    model_id = str(binding.get("model_id") or "").strip().lower()
+    configured = configured_credit_multiplier_for(binding, owner)
+    obs = (observed_multipliers or {}).get(model_id) or {}
+    obs_mult = obs.get("multiplier")
+    obs_cp1m = obs.get("credits_per_1m")
+    samples = int(obs.get("credit_samples") or 0)
+    if type(obs_mult) in (int, float) and math.isfinite(obs_mult) and obs_mult > 0 and samples >= 1:
+        return {
+            "configured": configured,
+            "observed": float(obs_mult),
+            "effective": float(obs_mult),
+            "source": "observed",
+            "samples": samples,
+            "credits_per_1m": obs_cp1m,
+        }
+    if configured is not None:
+        return {
+            "configured": configured,
+            "observed": float(obs_mult) if type(obs_mult) in (int, float) else None,
+            "effective": configured,
+            "source": "configured",
+            "samples": samples,
+            "credits_per_1m": obs_cp1m,
+        }
+    return {
+        "configured": None,
+        "observed": None,
+        "effective": None,
+        "source": "unknown",
+        "samples": samples,
+        "credits_per_1m": obs_cp1m,
+    }
+
+
+def effective_pool_limits(owner: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
+    """Merged default physical-pool concurrency, RPM/TPM and shared-pool limits plus Owner overrides."""
+    merged: dict[str, dict[str, Any]] = {k: dict(v) for k, v in DEFAULT_POOL_LIMITS.items()}
     raw = (owner or {}).get("pool_limits")
     if isinstance(raw, Mapping):
         for pool, entry in raw.items():
             if isinstance(pool, str) and pool.strip() and isinstance(entry, Mapping):
                 cap = entry.get("max_in_flight")
                 if type(cap) is int and cap > 0:
-                    merged[pool.strip().lower()] = {"max_in_flight": cap}
+                    cfg: dict[str, Any] = {"max_in_flight": cap}
+                    for rate_key in ("rpm_limit", "tpm_limit"):
+                        rate_val = entry.get(rate_key)
+                        if type(rate_val) is int and rate_val > 0:
+                            cfg[rate_key] = rate_val
+                    shared = entry.get("shared_account_pool")
+                    if isinstance(shared, str) and shared.strip():
+                        cfg["shared_account_pool"] = shared.strip().lower()
+                    merged[pool.strip().lower()] = cfg
     return merged
+
+
+def pool_key_for_upstream(upstream: str, pool_limits: Mapping[str, Mapping[str, Any]] | None) -> str:
+    """Resolve shared physical account pool key when multiple logical providers share one upstream pool."""
+    key = str(upstream or "").strip().lower()
+    if not key:
+        return ""
+    cfg = (pool_limits or {}).get(key)
+    if isinstance(cfg, Mapping):
+        shared = cfg.get("shared_account_pool")
+        if isinstance(shared, str) and shared.strip():
+            return shared.strip().lower()
+    return key
 
 
 def binding_cost_class(binding: Mapping[str, Any], connection: Mapping[str, Any], owner: Mapping[str, Any]) -> str:
@@ -480,12 +608,19 @@ def read_overrides(state_path: Path | None) -> dict[str, Any]:
             if _cost_entry(value) is None:
                 raise ValueError("invalid_model_routing_overrides")
     pool_limits = data.get("pool_limits", {})
-    if not isinstance(pool_limits, dict) or any(
-        not isinstance(pool, str) or not pool.strip() or not isinstance(cfg, Mapping)
-        or type(cfg.get("max_in_flight")) is not int or cfg["max_in_flight"] <= 0
-        for pool, cfg in pool_limits.items()
-    ):
+    if not isinstance(pool_limits, dict):
         raise ValueError("invalid_model_routing_overrides")
+    for pool, cfg in pool_limits.items():
+        if (not isinstance(pool, str) or not pool.strip() or not isinstance(cfg, Mapping)
+                or type(cfg.get("max_in_flight")) is not int or cfg["max_in_flight"] <= 0):
+            raise ValueError("invalid_model_routing_overrides")
+        for rate_key in ("rpm_limit", "tpm_limit"):
+            if rate_key in cfg and (type(cfg[rate_key]) is not int or cfg[rate_key] <= 0):
+                raise ValueError("invalid_model_routing_overrides")
+        if "shared_account_pool" in cfg and (
+            not isinstance(cfg["shared_account_pool"], str) or not cfg["shared_account_pool"].strip()
+        ):
+            raise ValueError("invalid_model_routing_overrides")
     paid = data.get("paid_api_windows", [])
     if not isinstance(paid, list) or any(not isinstance(v, str) or not v for v in paid):
         raise ValueError("invalid_model_routing_overrides")

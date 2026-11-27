@@ -258,3 +258,121 @@ def test_pool_concurrency_check_handles_lockless_store_and_fails_closed_on_sqlit
     raw_conn.close()
     with pytest.raises(TaskStoreError, match="QUOTA_WAIT:pool_concurrency_check_failed"):
         host._prepare_task_quota(task)
+
+
+def test_shared_account_pool_rpm_tpm_observed_multipliers_and_promotional_free(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+    import sqlite3
+    from reverse_agent.platform_v1.run_store import TaskStoreError
+    from reverse_agent.platform_v1.routing_inputs import (
+        configured_credit_multiplier_for,
+        observed_credit_multipliers,
+        pool_key_for_upstream,
+        resolve_credit_multiplier,
+    )
+    from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+
+    state = tmp_path / "model_setup_state.json"
+    overrides = tmp_path / "model_routing_overrides.json"
+    overrides.write_text(
+        json.dumps({
+            "pool_limits": {
+                "workbuddy": {"max_in_flight": 1, "rpm_limit": 2, "tpm_limit": 5000, "shared_account_pool": "wb-shared"},
+                "workbuddy-ai": {"max_in_flight": 1, "rpm_limit": 2, "tpm_limit": 5000, "shared_account_pool": "wb-shared"},
+            }
+        }),
+        encoding="utf-8",
+    )
+    loaded = read_overrides(state)
+    limits = effective_pool_limits(loaded)
+    assert pool_key_for_upstream("workbuddy", limits) == "wb-shared"
+    assert pool_key_for_upstream("workbuddy-ai", limits) == "wb-shared"
+
+    wb = candidate("wb", "workbuddy/glm-5.3", cost="subscription")
+    wb_ai = candidate("wb-ai", "workbuddy-ai/glm-5.3", cost="subscription")
+    alt = candidate("zen", "opencode-zen-free/glm-5.3", cost="free")
+    # Shared physical pool saturation blocks BOTH workbuddy and workbuddy-ai, routing to zen.
+    shared_dec = choose(
+        [wb, wb_ai, alt],
+        in_flight_by_upstream={"wb-shared": 1},
+        pool_limits=limits,
+    )
+    assert shared_dec["binding_ref"] == "zen"
+    assert shared_dec["excluded_summary"] == {"pool_concurrency_limit": 2}
+
+    # RPM and TPM limits exclude saturated pools cleanly and mark temporary_resource_blocked.
+    with pytest.raises(ModelSelectionError) as rpm_exc:
+        choose([wb, wb_ai], rpm_by_pool={"wb-shared": 2}, pool_limits=limits)
+    assert rpm_exc.value.decision["excluded_summary"] == {"pool_rpm_limit": 2}
+    assert rpm_exc.value.decision.get("temporary_resource_blocked") is True
+
+    with pytest.raises(ModelSelectionError) as tpm_exc:
+        choose([wb, wb_ai], tpm_by_pool={"wb-shared": 5000}, pool_limits=limits)
+    assert tpm_exc.value.decision["excluded_summary"] == {"pool_tpm_limit": 2}
+    assert tpm_exc.value.decision.get("temporary_resource_blocked") is True
+
+    # Observed multiplier overrides unconfigured unknown without treating missing as 0.
+    obs = observed_credit_multipliers([
+        {"served_model": "workbuddy/kimi-k3", "input": 500_000, "output": 500_000, "reported_credits": 100.0},
+        {"served_model": "workbuddy/claude-sonnet-4-6", "input": 500_000, "output": 500_000, "reported_credits": 400.0},
+    ], baseline_credits_per_1m=100.0)
+    assert configured_credit_multiplier_for({"binding_id": "wb-1", "model_id": "workbuddy/kimi-k3"}, loaded) is None
+    res_obs = resolve_credit_multiplier({"binding_id": "wb-1", "model_id": "workbuddy/kimi-k3"}, loaded, observed_multipliers=obs)
+    assert res_obs["source"] == "observed" and res_obs["observed"] == 1.0
+    res_unknown = resolve_credit_multiplier({"binding_id": "wb-unk", "model_id": "workbuddy/unknown-m"}, loaded, observed_multipliers=obs)
+    assert res_unknown["source"] == "unknown" and res_unknown["effective"] is None
+
+    # Unknown subscription multiplier incurs uncertainty penalty compared with known 1.0x.
+    cap_table = {
+        "workbuddy/kimi-k3": {"tiers": {"code": 4}},
+        "workbuddy/unknown-m": {"tiers": {"code": 4}},
+    }
+    known_c = candidate("wb-k", "workbuddy/kimi-k3", cost="subscription", credit_multiplier=1.0, credit_multiplier_info=res_obs)
+    unk_c = candidate("wb-u", "workbuddy/unknown-m", cost="subscription", credit_multiplier=1.0, credit_multiplier_info=res_unknown)
+    ranked_dec = select_model(
+        [unk_c, known_c], difficulty=3, kind="code", capability_table=cap_table, allow_paid=True,
+        profiles={
+            "wb-k": {"task_buckets": {"code:4": {"attempts": 3, "success_rate": 1.0, "timeouts": 0}}},
+            "wb-u": {"task_buckets": {"code:4": {"attempts": 3, "success_rate": 1.0, "timeouts": 0}}},
+        },
+    )
+    assert ranked_dec["binding_ref"] == "wb-k"
+    assert ranked_dec["candidates"][0]["score_breakdown"]["credit_cost_uncertainty_penalty"] == 0.0
+    assert ranked_dec["candidates"][1]["score_breakdown"]["credit_cost_uncertainty_penalty"] == 0.15
+
+    # Promotional free channel promotion + urgency.
+    now_dt = datetime(2026, 11, 27, 5, 0, tzinfo=timezone.utc)
+    ts = now_dt.timestamp()
+    promo_iso = (now_dt + timedelta(hours=3)).isoformat().replace("+00:00", "Z")
+    promo_acct = {
+        "provider": "workbuddy", "kind": "subscription", "plan": "Pro", "user": "u1", "readAt": now_dt.isoformat(),
+        "windows": [{"name": "Limited-time Free Promo", "used": 10, "remaining": 90, "resetsAt": promo_iso, "models": ["glm-5.3"]}],
+    }
+    allowances = ra.read_allowances({"status": "available", "accounts": parse_quotas({"object": "list", "data": [promo_acct]}, now_dt)}, now=ts)
+    assert "workbuddy" in allowances.get("promotions", {})
+    c_class, res = ra.effective_cost(
+        {"binding_id": "wb", "model_id": "workbuddy/glm-5.3", "connection_id": "magpie"},
+        {"connection_id": "magpie", "auth_method": "none", "base_url": "http://127.0.0.1:3425/v1"},
+        {},
+        allowances,
+        now=ts,
+    )
+    assert c_class == "free" and "promotional_free" in res
+    assert ra.urgency(res, now=ts) > 0.0
+
+    # Host _prepare_task_quota enforces RPM limit on shared physical pool.
+    raw_conn = sqlite3.connect(":memory:")
+    raw_conn.row_factory = sqlite3.Row
+    raw_conn.execute("CREATE TABLE tasks (id TEXT PRIMARY KEY, status TEXT, binding_ref TEXT)")
+    host = CombinedTrustedHost.__new__(CombinedTrustedHost)
+    host._store = SimpleNamespace(
+        _state_path=state,
+        list_bindings_public=lambda: [{"binding_id": "wb-ai", "connection_id": "magpie", "model_id": "workbuddy-ai/glm-5.3"}],
+        list_connections_public=lambda: [{"connection_id": "magpie", "auth_method": "none", "account_ref": "magpie"}],
+        get_connection_public=lambda _c: {"connection_id": "magpie", "auth_method": "none", "account_ref": "magpie"},
+    )
+    host._task_store = SimpleNamespace(_conn=raw_conn)
+    host._recent_pool_rates = lambda _pl: ({"wb-shared": 2}, {"wb-shared": 100})
+    with pytest.raises(TaskStoreError, match="QUOTA_WAIT:pool_rpm_limit:wb-shared:2/2"):
+        host._prepare_task_quota(SimpleNamespace(id="t-rpm", binding_ref="wb-ai", executor_kind="opencode", status="QUEUED"))
+    raw_conn.close()

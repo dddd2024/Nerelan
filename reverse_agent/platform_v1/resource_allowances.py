@@ -40,6 +40,8 @@ ALLOWANCE_BASE_BONUS = .05
 ALLOWANCE_URGENCY_BONUS = .25
 CREDIT_URGENCY_BONUS = .5
 DAILY_POOL_URGENCY_BONUS = .20
+PROMO_BASE_BONUS = .08
+PROMO_URGENCY_BONUS = .25
 
 _MODEL_TOKENS = re.compile(
     r"\s*(?P<model>[A-Za-z0-9][A-Za-z0-9 ._:-]{0,120}?)\s+tokens(?:\s*\((?:est\.?|estimated)\))?\s*", re.I)
@@ -47,6 +49,7 @@ _MODEL_TOKENS = re.compile(
 _UNNAMED = frozenset({"free model", "free models", "model", "models", "free", "total", "daily", "weekly",
                       "monthly", "input", "output", "prompt", "completion", "cached", "cache", "premium",
                       "extra", "bonus", "remaining", "used"})
+_PROMO_KEYWORDS = ("promo", "promotion", "限时免费", "free trial", "limited free", "limited-time free", "gift", "bonus credits")
 
 EMPTY: dict[str, Any] = {"models": {}, "credits": {}, "unattributed": [], "ambiguous": []}
 
@@ -106,6 +109,30 @@ def read_allowances(snapshot: Mapping[str, Any] | None, *, now: float) -> dict[s
                                            "remaining_percent": remaining, "resets_at": resets_at,
                                            "limit": _number(window.get("limit")),
                                            "account_ref": account.get("account_ref")}
+            promo_until = _timestamp(window.get("free_until") or window.get("promo_until")) or resets_at
+            is_promo = (bool(window.get("promotional")) or bool(window.get("free_until"))
+                        or any(kw in window["name"].lower() for kw in _PROMO_KEYWORDS))
+            if (is_promo and (remaining is None or remaining > ALLOWANCE_RESERVE_PERCENT)
+                    and (promo_until is None or promo_until > now)):
+                promo_map = result.setdefault("promotions", {})
+                promo_entry = {
+                    "provider": provider, "window": window["name"],
+                    "remaining_percent": remaining, "free_until": promo_until,
+                    "models": [str(m).lower() for m in (window.get("models") or ()) if isinstance(m, str)],
+                    "account_ref": account.get("account_ref"),
+                }
+                prev_promo = promo_map.get(provider)
+                if prev_promo is None or (promo_until is not None and (prev_promo.get("free_until") is None or promo_until < prev_promo["free_until"])):
+                    promo_map[provider] = promo_entry
+                for promo_model in promo_entry["models"]:
+                    target_key = promo_model if "/" in promo_model else f"{provider}/{promo_model}"
+                    result["models"].setdefault(target_key, {
+                        "provider": provider, "window": window["name"],
+                        "remaining_percent": remaining if remaining is not None else 100.0,
+                        "resets_at": promo_until, "limit": _number(window.get("limit")),
+                        "account_ref": account.get("account_ref"), "model": promo_model.split("/", 1)[-1],
+                        "promotional": True,
+                    })
             match = _MODEL_TOKENS.fullmatch(window["name"])
             if match is None or remaining is None or window.get("unlimited") is True:
                 continue
@@ -170,6 +197,15 @@ def effective_cost(binding: Mapping[str, Any], connection: Mapping[str, Any], ow
     daily = (allowances.get("daily_pools") or {}).get(provider)
     if daily and cost_class in {"free", "subscription"}:
         resources["daily_pool"] = {key: daily.get(key) for key in ("window", "remaining_percent", "resets_at", "limit")}
+    promo = (allowances.get("promotions") or {}).get(provider)
+    if promo and (not promo.get("models") or model_id.lower() in promo["models"] or model_id.split("/", 1)[1].lower() in promo["models"]):
+        free_until = promo.get("free_until")
+        if free_until is None or free_until > now:
+            resources["promotional_free"] = {key: promo.get(key) for key in ("window", "remaining_percent", "free_until")}
+            if (cost_class == "subscription" and provider not in paced
+                    and not explicit_cost_class(binding, connection, owner)):
+                resources["promotional_free"]["default_cost_class"] = cost_class
+                cost_class = "free"
     return cost_class, resources
 
 
@@ -198,4 +234,10 @@ def urgency(resources: Mapping[str, Any] | None, *, now: float) -> float:
         resets_at = daily.get("resets_at")
         if type(resets_at) in (int, float):
             bonus += DAILY_POOL_URGENCY_BONUS * _approach(resets_at - now, ALLOWANCE_HORIZON_SECONDS)
+    promo = resources.get("promotional_free")
+    if promo:
+        bonus += PROMO_BASE_BONUS
+        free_until = promo.get("free_until")
+        if type(free_until) in (int, float):
+            bonus += PROMO_URGENCY_BONUS * _approach(free_until - now, ALLOWANCE_HORIZON_SECONDS)
     return round(min(0.95, bonus), 6)
