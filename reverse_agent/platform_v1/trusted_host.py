@@ -177,6 +177,8 @@ class CombinedTrustedHost:
         self._auth_refresh_condition = threading.Condition()
         self._auth_refresh_in_progress = False
         self._auth_refresh_last_completed: float | None = None
+        self._live_pool_lock = threading.Lock()
+        self._live_pool_dispatches: list[tuple[float, str, int]] = []
         self._account_auth = AccountAuthManager(
             store=self._store,
             server_factory=account_auth_server_factory,
@@ -363,6 +365,58 @@ class CombinedTrustedHost:
                 "window_renews": window_renews(self._control_store, window),
                 "budget": self._control_store.window_budget_summary(window.id)}
 
+    def _magpie_usage_cache_path(self) -> Path:
+        from . import magpie_usage_ingest
+        env_cache = os.environ.get("REVERSE_AGENT_MAGPIE_CACHE")
+        if env_cache:
+            return Path(env_cache)
+        db_path = getattr(getattr(self, "_task_store", None), "db_path", None)
+        if isinstance(db_path, (str, Path)) and str(db_path) not in {"", ":memory:"}:
+            db_cache = Path(db_path).parent / "magpie_usage_cache.jsonl"
+            if db_cache.is_file() or not os.environ.get("REVERSE_AGENT_RUNTIME_DIR"):
+                return db_cache
+        return magpie_usage_ingest.default_cache_path()
+
+    def _magpie_cli_executable(self) -> Path | None:
+        from . import magpie_usage_ingest
+        exe = magpie_usage_ingest.magpie_executable()
+        if exe is not None:
+            return exe
+        try:
+            settings = self._store.get_magpie() if getattr(self, "_store", None) else {}
+        except Exception:  # noqa: BLE001
+            settings = {}
+        raw_exe = str(settings.get("executable") or "").strip() if isinstance(settings, Mapping) and settings.get("enabled") else ""
+        if raw_exe:
+            candidate = Path(raw_exe)
+            if candidate.is_absolute() and candidate.is_file():
+                return candidate
+        return None
+
+    def _refresh_magpie_usage_cache(
+        self,
+        *,
+        max_age_seconds: float = 10.0,
+        last: str = "6h",
+        timeout: float = 3.0,
+    ) -> Path:
+        from . import magpie_usage_ingest
+        cache_path = self._magpie_usage_cache_path()
+        now_mono = time.monotonic()
+        last_refresh = getattr(self, "_magpie_usage_refresh_at", -1e9)
+        if max_age_seconds > 0 and (now_mono - last_refresh) < max_age_seconds:
+            return cache_path
+        exe = self._magpie_cli_executable()
+        if exe is not None:
+            self._magpie_usage_refresh_at = now_mono
+            try:
+                rows = magpie_usage_ingest.read_usage(exe, last=last, timeout=timeout)
+                if rows:
+                    magpie_usage_ingest.merge_into_cache(rows, path=cache_path)
+            except Exception:  # noqa: BLE001 - best-effort read-only Magpie usage refresh
+                pass
+        return cache_path
+
     def _run_health_audit(self) -> dict[str, Any] | None:
         db_path = getattr(self._task_store, "db_path", None)
         if not isinstance(db_path, (str, Path)) or str(db_path) in {"", ":memory:"}:
@@ -371,33 +425,8 @@ class CombinedTrustedHost:
         if not path.is_file():
             return None
         try:
-            from . import magpie_usage_ingest
             from .health_audit import run_health_audit
-
-            db_cache = path.parent / "magpie_usage_cache.jsonl"
-            if db_cache.is_file() or not os.environ.get("REVERSE_AGENT_RUNTIME_DIR"):
-                cache_path = db_cache
-            else:
-                cache_path = magpie_usage_ingest.default_cache_path()
-
-            exe = magpie_usage_ingest.magpie_executable()
-            if exe is None:
-                try:
-                    settings = self._store.get_magpie()
-                except Exception:  # noqa: BLE001
-                    settings = {}
-                raw_exe = str(settings.get("executable") or "").strip() if settings.get("enabled") else ""
-                if raw_exe:
-                    candidate = Path(raw_exe)
-                    if candidate.is_absolute() and candidate.is_file():
-                        exe = candidate
-            if exe is not None:
-                try:
-                    rows = magpie_usage_ingest.read_usage(exe)
-                    if rows:
-                        magpie_usage_ingest.merge_into_cache(rows, path=cache_path)
-                except Exception:  # noqa: BLE001 - best-effort read-only Magpie usage refresh
-                    pass
+            cache_path = self._refresh_magpie_usage_cache(max_age_seconds=0.0, last="6h", timeout=25.0)
 
             closed_refs: set[tuple[str, int]] | None = None
             closed_issues: set[int] | None = None
@@ -806,8 +835,11 @@ class CombinedTrustedHost:
             credit_multiplier_for,
             effective_pool_limits,
             inherit_group_availability,
+            observed_credit_multipliers,
             paced_group_provider,
+            pool_key_for_upstream,
             read_overrides,
+            resolve_credit_multiplier,
             weekly_pace_config,
         )
         from .routing_capabilities import read_capability_table
@@ -855,10 +887,12 @@ class CombinedTrustedHost:
         from .resource_allowances import effective_cost
         allowances = self._resource_allowances(refresh=not forecast)
         allowance_now = time.time()
-        in_flight_by_upstream = None if forecast else self._in_flight_by_upstream(
-            by_id, connections, exclude_task_id=getattr(task, "id", None),
-        )
         pool_limits = effective_pool_limits(owner)
+        in_flight_by_upstream = None if forecast else self._in_flight_by_upstream(
+            by_id, connections, exclude_task_id=getattr(task, "id", None), pool_limits=pool_limits,
+        )
+        observed_multipliers = self._observed_credit_multipliers()
+        rpm_by_pool, tpm_by_pool = ({}, {}) if forecast else self._recent_pool_rates(pool_limits)
         for binding in bindings:
             connection = connections.get(binding["connection_id"], {})
             native = connection.get("auth_method") == "external_cli_session"
@@ -930,7 +964,13 @@ class CombinedTrustedHost:
                                "paced_provider": paced_provider,
                                # Where the weekly figure came from, or why there is none.
                                "weekly_pace_input": pace_input,
-                               "credit_multiplier": credit_multiplier_for(binding, owner),
+                               "credit_multiplier": (
+                                   resolve_credit_multiplier(binding, owner, observed_multipliers=observed_multipliers)["effective"]
+                                   or credit_multiplier_for(binding, owner)
+                               ),
+                               "credit_multiplier_info": resolve_credit_multiplier(
+                                   binding, owner, observed_multipliers=observed_multipliers
+                               ),
                                "cost_class": cost_class, "resources": resources}
             # Evaluate the same pure hard filters before spending a probe. A
             # catalog entry excluded by scope, quota or calibration costs no call.
@@ -987,7 +1027,9 @@ class CombinedTrustedHost:
                                 stall_tier=stall_tier if avoid_bindings and type(stall_tier) is int else 0,
                                 groups=owner.get("groups", {}), window_pool=pool_refs,
                                 in_flight_by_upstream=in_flight_by_upstream,
-                                pool_limits=pool_limits)
+                                pool_limits=pool_limits,
+                                rpm_by_pool=rpm_by_pool,
+                                tpm_by_pool=tpm_by_pool)
             decision["context_packet_reservation"] = 16384 + 256
             if window_pool is not None:
                 decision["pool_source"] = window_pool["pool_source"]
@@ -1009,13 +1051,120 @@ class CombinedTrustedHost:
     def _binding_pool_key(
         binding: Mapping[str, Any],
         connections: Mapping[str, Mapping[str, Any]],
+        pool_limits: Mapping[str, Mapping[str, Any]] | None = None,
     ) -> str:
-        from .routing_inputs import upstream_namespace
+        from .routing_inputs import pool_key_for_upstream, upstream_namespace
         pool_key = upstream_namespace(binding.get("model_id"))
-        if pool_key:
-            return pool_key
-        conn = connections.get(binding.get("connection_id") or "", {})
-        return str(conn.get("account_ref") or conn.get("connection_id") or "").lower()
+        if not pool_key:
+            conn = connections.get(binding.get("connection_id") or "", {})
+            pool_key = str(conn.get("account_ref") or conn.get("connection_id") or "").lower()
+        return pool_key_for_upstream(pool_key, pool_limits) if pool_key else ""
+
+    def _magpie_usage_rows(self, *, refresh: bool = False) -> list[dict[str, Any]]:
+        path = (
+            self._refresh_magpie_usage_cache(max_age_seconds=10.0, last="5m", timeout=3.0)
+            if refresh
+            else self._magpie_usage_cache_path()
+        )
+        if not path.is_file():
+            return []
+        try:
+            from .magpie_usage_ingest import read_cache
+            return read_cache(path)
+        except OSError:
+            return []
+
+    def _observed_credit_multipliers(self) -> dict[str, dict[str, Any]]:
+        from .routing_inputs import observed_credit_multipliers
+        rows = self._magpie_usage_rows()
+        return observed_credit_multipliers(rows) if rows else {}
+
+    def _record_live_pool_dispatch(self, pool_key: str, *, now: float | None = None, tokens: int = 0) -> None:
+        if not pool_key:
+            return
+        ts = time.time() if now is None else float(now)
+        lock = getattr(self, "_live_pool_lock", None) or nullcontext()
+        with lock:
+            entries = getattr(self, "_live_pool_dispatches", None)
+            if entries is None:
+                entries = []
+                self._live_pool_dispatches = entries
+            entries.append((ts, pool_key, max(0, int(tokens))))
+            cutoff = ts - 300.0
+            if entries and entries[0][0] < cutoff:
+                self._live_pool_dispatches = [item for item in entries if item[0] >= cutoff]
+
+    def _recent_pool_rates(
+        self,
+        pool_limits: Mapping[str, Mapping[str, Any]] | None,
+        *,
+        window_seconds: float = 60.0,
+        now: float | None = None,
+    ) -> tuple[dict[str, int], dict[str, int]]:
+        from .routing_inputs import pool_key_for_upstream
+        has_rate_caps = any(
+            isinstance(cfg, Mapping) and (
+                (isinstance(cfg.get("rpm_limit"), int) and cfg["rpm_limit"] > 0)
+                or (isinstance(cfg.get("tpm_limit"), int) and cfg["tpm_limit"] > 0)
+            )
+            for cfg in (pool_limits or {}).values()
+        )
+        ref_now = time.time() if now is None else float(now)
+        cutoff = ref_now - window_seconds
+        rows = self._magpie_usage_rows(refresh=(now is None and has_rate_caps))
+        rpm: dict[str, int] = {}
+        tpm: dict[str, int] = {}
+        for row in rows:
+            raw_time = row.get("time")
+            if not isinstance(raw_time, str) or not raw_time:
+                continue
+            try:
+                ts = datetime.fromisoformat(raw_time.replace("Z", "+00:00")).timestamp()
+            except ValueError:
+                continue
+            if ts < cutoff:
+                continue
+            served = str(
+                row.get("served_model") or row.get("served")
+                or row.get("asked_model") or row.get("model") or ""
+            ).strip().lower()
+            raw_pool = served.split("/", 1)[0] if "/" in served else ""
+            key = pool_key_for_upstream(raw_pool, pool_limits) if raw_pool else ""
+            if not key:
+                continue
+            rpm[key] = rpm.get(key, 0) + 1
+            tokens = row.get("tokens") if isinstance(row.get("tokens"), Mapping) else row
+            tok = 0
+            for field in ("input", "in", "cache_read", "cache_write", "output", "out", "reasoning"):
+                if field == "in" and "input" in tokens:
+                    continue
+                if field == "out" and "output" in tokens:
+                    continue
+                val = tokens.get(field)
+                if type(val) in (int, float) and val > 0:
+                    tok += int(val)
+            tpm[key] = tpm.get(key, 0) + tok
+        live_entries = getattr(self, "_live_pool_dispatches", None)
+        if live_entries:
+            lock = getattr(self, "_live_pool_lock", None) or nullcontext()
+            with lock:
+                snapshot = list(live_entries)
+            live_rpm: dict[str, int] = {}
+            live_tpm: dict[str, int] = {}
+            for ts, key, est_tok in snapshot:
+                if ts < cutoff:
+                    continue
+                norm_key = pool_key_for_upstream(key, pool_limits) or key
+                live_rpm[norm_key] = live_rpm.get(norm_key, 0) + 1
+                if est_tok > 0:
+                    live_tpm[norm_key] = live_tpm.get(norm_key, 0) + est_tok
+            for key, cnt in live_rpm.items():
+                if cnt > rpm.get(key, 0):
+                    rpm[key] = cnt
+            for key, tok in live_tpm.items():
+                if tok > tpm.get(key, 0):
+                    tpm[key] = tok
+        return rpm, tpm
 
     def _in_flight_by_upstream(
         self,
@@ -1024,6 +1173,7 @@ class CombinedTrustedHost:
         *,
         exclude_task_id: str | None = None,
         fail_closed: bool = False,
+        pool_limits: Mapping[str, Mapping[str, Any]] | None = None,
     ) -> dict[str, int]:
         """Count active RUNNING or claimed tasks grouped by physical upstream pool (#1533)."""
         task_store = getattr(self, "_task_store", None)
@@ -1063,7 +1213,7 @@ class CombinedTrustedHost:
             binding = bindings_by_id.get(bref)
             if not binding:
                 continue
-            pool_key = self._binding_pool_key(binding, connections)
+            pool_key = self._binding_pool_key(binding, connections, pool_limits=pool_limits)
             if pool_key:
                 counts[pool_key] = counts.get(pool_key, 0) + 1
         return counts
@@ -1557,7 +1707,7 @@ class CombinedTrustedHost:
                 raise TaskStoreError("QUOTA_WAIT:binding_unknown")
             return
         connection = self._store.get_connection_public(binding["connection_id"])
-        from .routing_inputs import effective_pool_limits, read_overrides
+        from .routing_inputs import effective_pool_limit_for, effective_pool_limits, read_overrides
         try:
             owner_overrides = read_overrides(getattr(self._store, "_state_path", None))
         except ValueError:
@@ -1577,8 +1727,9 @@ class CombinedTrustedHost:
                         conns_by_id[cid] = self._store.get_connection_public(cid)
                     except KeyError:
                         continue
-        pool_key = CombinedTrustedHost._binding_pool_key(binding, conns_by_id)
-        pool_limit = (pool_limits.get(pool_key) or {}).get("max_in_flight")
+        raw_pool_key = CombinedTrustedHost._binding_pool_key(binding, conns_by_id)
+        pool_key, pool_cfg = effective_pool_limit_for(raw_pool_key, pool_limits) if raw_pool_key else ("", {})
+        pool_limit = pool_cfg.get("max_in_flight")
         in_flight_fn = getattr(self, "_in_flight_by_upstream", None)
         if isinstance(pool_limit, int) and pool_limit > 0 and callable(in_flight_fn):
             # Serialized within the single coordinator loop before claim_task();
@@ -1588,17 +1739,33 @@ class CombinedTrustedHost:
                 conns_by_id,
                 exclude_task_id=task.id,
                 fail_closed=True,
+                pool_limits=pool_limits,
             ).get(pool_key, 0)
             if in_flight >= pool_limit:
                 raise TaskStoreError(f"QUOTA_WAIT:pool_concurrency_limit:{pool_key}:{in_flight}/{pool_limit}")
+        rpm_cap = pool_cfg.get("rpm_limit")
+        tpm_cap = pool_cfg.get("tpm_limit")
+        rate_fn = getattr(self, "_recent_pool_rates", None)
+        if ((isinstance(rpm_cap, int) and rpm_cap > 0) or (isinstance(tpm_cap, int) and tpm_cap > 0)) and callable(rate_fn):
+            rpm_by_pool, tpm_by_pool = rate_fn(pool_limits)
+            rpm_used = rpm_by_pool.get(pool_key, 0)
+            tpm_used = tpm_by_pool.get(pool_key, 0)
+            if isinstance(rpm_cap, int) and rpm_cap > 0 and rpm_used >= rpm_cap:
+                raise TaskStoreError(f"QUOTA_WAIT:pool_rpm_limit:{pool_key}:{rpm_used}/{rpm_cap}")
+            if isinstance(tpm_cap, int) and tpm_cap > 0 and tpm_used >= tpm_cap:
+                raise TaskStoreError(f"QUOTA_WAIT:pool_tpm_limit:{pool_key}:{tpm_used}/{tpm_cap}")
         feedback_identity = ({"binding_ref": binding["binding_id"],
                               "account_ref": connection.get("account_ref") or connection["connection_id"]}
                              if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1" else None)
         if connection.get("auth_method") != "external_cli_session":
+            if pool_key and ((isinstance(rpm_cap, int) and rpm_cap > 0) or (isinstance(tpm_cap, int) and tpm_cap > 0)):
+                self._record_live_pool_dispatch(pool_key)
             return feedback_identity
         from ..model_access.contracts import NATIVE_CLI_PROVIDERS
         provider = connection.get("executor_provider_id")
         if provider not in NATIVE_CLI_PROVIDERS:
+            if pool_key and ((isinstance(rpm_cap, int) and rpm_cap > 0) or (isinstance(tpm_cap, int) and tpm_cap > 0)):
+                self._record_live_pool_dispatch(pool_key)
             return feedback_identity  # identity is useful even when this route has no quota windows
         account = connection.get("account_ref") or connection["connection_id"]
         def read(_account):
@@ -1619,6 +1786,8 @@ class CombinedTrustedHost:
                 need, evidence, release_hours=float(pace.get("reserve_release_hours", 0)), now=time.time())
         self._control_store.prepare_quota_admission(task_id=task.id,
             binding_ref=binding["binding_id"], account_ref=account, evidence=evidence, need=need, resume_route=resume_route)
+        if pool_key and ((isinstance(rpm_cap, int) and rpm_cap > 0) or (isinstance(tpm_cap, int) and tpm_cap > 0)):
+            self._record_live_pool_dispatch(pool_key)
 
     def _quota_check(self, binding: Mapping[str, Any]) -> dict[str, Any] | None:
         from .quota_guard import check, typical_need

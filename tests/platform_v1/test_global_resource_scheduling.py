@@ -258,3 +258,232 @@ def test_pool_concurrency_check_handles_lockless_store_and_fails_closed_on_sqlit
     raw_conn.close()
     with pytest.raises(TaskStoreError, match="QUOTA_WAIT:pool_concurrency_check_failed"):
         host._prepare_task_quota(task)
+
+
+def test_shared_account_pool_rpm_tpm_observed_multipliers_and_promotional_free(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+    import sqlite3
+    from reverse_agent.platform_v1.run_store import TaskStoreError
+    from reverse_agent.platform_v1.routing_inputs import (
+        configured_credit_multiplier_for,
+        observed_credit_multipliers,
+        pool_key_for_upstream,
+        resolve_credit_multiplier,
+    )
+    from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+
+    state = tmp_path / "model_setup_state.json"
+    overrides = tmp_path / "model_routing_overrides.json"
+    overrides.write_text(
+        json.dumps({
+            "models": {"workbuddy/claude-sonnet-4-6": {"credit_multiplier": 6.0}},
+            "pool_limits": {
+                "wb-shared": {"max_in_flight": 1, "rpm_limit": 2, "tpm_limit": 5000},
+                "workbuddy": {"max_in_flight": 1, "shared_account_pool": "wb-shared"},
+                "workbuddy-ai": {"max_in_flight": 1, "shared_account_pool": "wb-shared"},
+            },
+            "compliance_excluded_providers": ["copilot"],
+        }),
+        encoding="utf-8",
+    )
+    loaded = read_overrides(state)
+    assert loaded["compliance_excluded_providers"] == ["copilot"]
+    assert pool_key_for_upstream("workbuddy", effective_pool_limits(loaded)) == "wb-shared"
+    limits = effective_pool_limits(loaded)
+    assert pool_key_for_upstream("workbuddy-ai", limits) == "wb-shared"
+
+    wb = candidate("wb", "workbuddy/glm-5.3", cost="subscription")
+    wb_ai = candidate("wb-ai", "workbuddy-ai/glm-5.3", cost="subscription")
+    alt = candidate("zen", "opencode-zen-free/glm-5.3", cost="free")
+    # Shared physical pool saturation blocks BOTH workbuddy and workbuddy-ai, routing to zen.
+    shared_dec = choose(
+        [wb, wb_ai, alt],
+        in_flight_by_upstream={"wb-shared": 1},
+        pool_limits=limits,
+    )
+    assert shared_dec["binding_ref"] == "zen"
+    assert shared_dec["excluded_summary"] == {"pool_concurrency_limit": 2}
+
+    # RPM and TPM limits inherited from shared pool ("wb-shared") exclude logical workbuddy/workbuddy-ai.
+    with pytest.raises(ModelSelectionError) as rpm_exc:
+        choose([wb, wb_ai], rpm_by_pool={"wb-shared": 2}, pool_limits=limits)
+    assert rpm_exc.value.decision["excluded_summary"] == {"pool_rpm_limit": 2}
+    assert rpm_exc.value.decision.get("temporary_resource_blocked") is True
+
+    with pytest.raises(ModelSelectionError) as tpm_exc:
+        choose([wb, wb_ai], tpm_by_pool={"wb-shared": 5000}, pool_limits=limits)
+    assert tpm_exc.value.decision["excluded_summary"] == {"pool_tpm_limit": 2}
+    assert tpm_exc.value.decision.get("temporary_resource_blocked") is True
+
+    # Auto per-namespace multiplier derivation without baseline_credits_per_1m, and Owner config wins precedence.
+    obs = observed_credit_multipliers([
+        {"served_model": "workbuddy/kimi-k3", "provider": "anthropic", "tokens": {"input": 500_000, "output": 500_000}, "reported_credits": 100.0},
+        {"served_model": "workbuddy/claude-sonnet-4-6", "provider": "anthropic", "tokens": {"input": 500_000, "output": 500_000}, "reported_credits": 400.0},
+    ])
+    assert configured_credit_multiplier_for({"binding_id": "wb-1", "model_id": "workbuddy/kimi-k3"}, loaded) is None
+    res_obs = resolve_credit_multiplier({"binding_id": "wb-1", "model_id": "workbuddy/kimi-k3"}, loaded, observed_multipliers=obs)
+    assert res_obs["source"] == "observed" and res_obs["effective"] == 1.0
+    res_cfg = resolve_credit_multiplier({"binding_id": "wb-cfg", "model_id": "workbuddy/claude-sonnet-4-6"}, loaded, observed_multipliers=obs)
+    assert res_cfg["source"] == "configured" and res_cfg["effective"] == 6.0 and res_cfg["observed"] == 4.0 and res_cfg["discrepancy_ratio"] == pytest.approx(4.0 / 6.0, rel=1e-3)
+    res_unknown = resolve_credit_multiplier({"binding_id": "wb-unk", "model_id": "workbuddy/unknown-m"}, loaded, observed_multipliers=obs)
+    assert res_unknown["source"] == "unknown" and res_unknown["effective"] is None
+
+    # Unknown subscription multiplier incurs uncertainty penalty compared with known 1.0x.
+    cap_table = {
+        "workbuddy/kimi-k3": {"tiers": {"code": 4}},
+        "workbuddy/unknown-m": {"tiers": {"code": 4}},
+    }
+    known_c = candidate("wb-k", "workbuddy/kimi-k3", cost="subscription", credit_multiplier=1.0, credit_multiplier_info=res_obs)
+    unk_c = candidate("wb-u", "workbuddy/unknown-m", cost="subscription", credit_multiplier=1.0, credit_multiplier_info=res_unknown)
+    ranked_dec = select_model(
+        [unk_c, known_c], difficulty=3, kind="code", capability_table=cap_table, allow_paid=True,
+        profiles={
+            "wb-k": {"task_buckets": {"code:4": {"attempts": 3, "success_rate": 1.0, "timeouts": 0}}},
+            "wb-u": {"task_buckets": {"code:4": {"attempts": 3, "success_rate": 1.0, "timeouts": 0}}},
+        },
+    )
+    assert ranked_dec["binding_ref"] == "wb-k"
+    assert ranked_dec["candidates"][0]["score_breakdown"]["credit_cost_uncertainty_penalty"] == 0.0
+    assert ranked_dec["candidates"][1]["score_breakdown"]["credit_cost_uncertainty_penalty"] == 0.15
+
+    # Promotional free channel promotion + fail-closed when remaining is missing & unlimited is False.
+    now_dt = datetime(2026, 11, 27, 5, 0, tzinfo=timezone.utc)
+    ts = now_dt.timestamp()
+    promo_iso = (now_dt + timedelta(hours=3)).isoformat().replace("+00:00", "Z")
+    promo_acct = {
+        "provider": "workbuddy", "kind": "subscription", "plan": "Pro", "user": "u1", "readAt": now_dt.isoformat(),
+        "windows": [{"name": "Limited-time Free Promo", "used": 10, "remaining": 90, "resetsAt": promo_iso, "models": ["glm-5.3"]}],
+    }
+    allowances = ra.read_allowances({"status": "available", "accounts": parse_quotas({"object": "list", "data": [promo_acct]}, now_dt)}, now=ts)
+    assert "workbuddy" in allowances.get("promotions", {})
+    no_rem = ra.read_allowances({
+        "status": "available",
+        "accounts": [{
+            "provider": "workbuddy", "state": "FRESH",
+            "windows": [{"name": "Limited-time Free Promo", "unlimited": False, "resets_at": promo_iso}],
+        }],
+    }, now=ts)
+    assert "promotions" not in no_rem
+    c_class, res = ra.effective_cost(
+        {"binding_id": "wb", "model_id": "workbuddy/glm-5.3", "connection_id": "magpie"},
+        {"connection_id": "magpie", "auth_method": "none", "base_url": "http://127.0.0.1:3425/v1"},
+        {},
+        allowances,
+        now=ts,
+    )
+    assert c_class == "free" and "promotional_free" in res
+    assert ra.urgency(res, now=ts) > 0.0
+    # Unlisted model on the same provider MUST stay subscription (never treated as provider-wide promo).
+    other_class, other_res = ra.effective_cost(
+        {"binding_id": "wb-sonnet", "model_id": "workbuddy/claude-sonnet-4-6", "connection_id": "magpie"},
+        {"connection_id": "magpie", "auth_method": "none", "base_url": "http://127.0.0.1:3425/v1"},
+        {},
+        allowances,
+        now=ts,
+    )
+    assert other_class == "subscription" and "promotional_free" not in other_res
+
+    # Promo without models scope also stays non-free; explicit ["*"] opts into provider-wide scope.
+    unscoped_acct = {
+        "provider": "workbuddy", "kind": "subscription", "plan": "Pro", "user": "u1", "readAt": now_dt.isoformat(),
+        "windows": [{"name": "Limited-time Free Promo", "used": 10, "remaining": 90, "resetsAt": promo_iso}],
+    }
+    unscoped_allow = ra.read_allowances({"status": "available", "accounts": parse_quotas({"object": "list", "data": [unscoped_acct]}, now_dt)}, now=ts)
+    u_class, u_res = ra.effective_cost(
+        {"binding_id": "wb-sonnet", "model_id": "workbuddy/claude-sonnet-4-6", "connection_id": "magpie"},
+        {"connection_id": "magpie", "auth_method": "none", "base_url": "http://127.0.0.1:3425/v1"},
+        {},
+        unscoped_allow,
+        now=ts,
+    )
+    assert u_class == "subscription" and "promotional_free" not in u_res
+
+    wildcard_acct = {
+        "provider": "workbuddy", "kind": "subscription", "plan": "Pro", "user": "u1", "readAt": now_dt.isoformat(),
+        "windows": [{"name": "Limited-time Free Promo", "used": 10, "remaining": 90, "resetsAt": promo_iso, "models": ["*"]}],
+    }
+    wildcard_allow = ra.read_allowances({"status": "available", "accounts": parse_quotas({"object": "list", "data": [wildcard_acct]}, now_dt)}, now=ts)
+    w_class, w_res = ra.effective_cost(
+        {"binding_id": "wb-sonnet", "model_id": "workbuddy/claude-sonnet-4-6", "connection_id": "magpie"},
+        {"connection_id": "magpie", "auth_method": "none", "base_url": "http://127.0.0.1:3425/v1"},
+        {},
+        wildcard_allow,
+        now=ts,
+    )
+    assert w_class == "free" and "promotional_free" in w_res
+
+    # End-to-end real magpie_usage_ingest rows (vendor provider="openai", nested tokens={...}) feed real _recent_pool_rates & _prepare_task_quota.
+    from reverse_agent.platform_v1 import magpie_usage_ingest
+    from reverse_agent.platform_v1.magpie_usage_ingest import merge_into_cache, parse_usage_csv
+    cache_path = tmp_path / "magpie_usage_cache.jsonl"
+    now_iso_recent = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    csv_rows = parse_usage_csv("\n".join([
+        "time,agent,provider,served_model,status,rejected,input_tokens,output_tokens,request_id,credits,cost_usd",
+        f"{now_iso_recent},opencode,openai,workbuddy/glm-5.3,200,false,2500,500,r1,5.0,0.0",
+        f"{now_iso_recent},opencode,openai,workbuddy-ai/glm-5.3,200,false,2000,500,r2,5.0,0.0",
+    ]))
+    assert len(csv_rows) == 2
+    merge_into_cache(csv_rows, path=cache_path)
+
+    raw_conn = sqlite3.connect(":memory:")
+    raw_conn.row_factory = sqlite3.Row
+    raw_conn.execute("CREATE TABLE tasks (id TEXT PRIMARY KEY, status TEXT, binding_ref TEXT)")
+    host = CombinedTrustedHost.__new__(CombinedTrustedHost)
+    host._store = SimpleNamespace(
+        _state_path=state,
+        list_bindings_public=lambda: [{"binding_id": "wb-ai", "connection_id": "magpie", "model_id": "workbuddy-ai/glm-5.3"}],
+        list_connections_public=lambda: [{"connection_id": "magpie", "auth_method": "none", "account_ref": "magpie"}],
+        get_connection_public=lambda _c: {"connection_id": "magpie", "auth_method": "none", "account_ref": "magpie"},
+    )
+    host._task_store = SimpleNamespace(_conn=raw_conn)
+    import os
+    old_cache = os.environ.get("REVERSE_AGENT_MAGPIE_CACHE")
+    old_exe = os.environ.get("REVERSE_AGENT_MAGPIE_EXE")
+    os.environ["REVERSE_AGENT_MAGPIE_CACHE"] = str(cache_path)
+    os.environ.pop("REVERSE_AGENT_MAGPIE_EXE", None)
+    try:
+        rpm_map, tpm_map = host._recent_pool_rates(limits)
+        assert rpm_map == {"wb-shared": 2} and tpm_map == {"wb-shared": 5500}
+        with pytest.raises(TaskStoreError, match="QUOTA_WAIT:pool_rpm_limit:wb-shared:2/2"):
+            host._prepare_task_quota(SimpleNamespace(id="t-rpm", binding_ref="wb-ai", executor_kind="opencode", status="QUEUED"))
+
+        # Fresh cache missing recent external rows triggers on-demand refresh via Magpie CLI when configured.
+        cache_path.unlink()
+        fake_exe = tmp_path / "magpie.exe"
+        fake_exe.write_text("stub", encoding="utf-8")
+        os.environ["REVERSE_AGENT_MAGPIE_EXE"] = str(fake_exe)
+        orig_read_usage = magpie_usage_ingest.read_usage
+        refresh_calls: list[str] = []
+
+        def _fake_read_usage(_exe, *, last="6h", timeout=25.0):
+            refresh_calls.append(last)
+            return csv_rows[:1]  # 1 request (3000 tokens)
+
+        magpie_usage_ingest.read_usage = _fake_read_usage
+        try:
+            refreshed_rpm, refreshed_tpm = host._recent_pool_rates(limits)
+            assert refreshed_rpm == {"wb-shared": 1} and refreshed_tpm == {"wb-shared": 3000}
+            assert len(refresh_calls) == 1
+        finally:
+            magpie_usage_ingest.read_usage = orig_read_usage
+            os.environ.pop("REVERSE_AGENT_MAGPIE_EXE", None)
+
+        # Even without Magpie CLI or cache rows, sequential live admissions track RPM locally.
+        live_host = CombinedTrustedHost.__new__(CombinedTrustedHost)
+        live_host._store = host._store
+        live_host._task_store = SimpleNamespace(_conn=raw_conn)
+        cache_path.unlink(missing_ok=True)
+        live_host._prepare_task_quota(SimpleNamespace(id="t-l1", binding_ref="wb-ai", executor_kind="opencode", status="QUEUED"))
+        live_host._prepare_task_quota(SimpleNamespace(id="t-l2", binding_ref="wb-ai", executor_kind="opencode", status="QUEUED"))
+        with pytest.raises(TaskStoreError, match="QUOTA_WAIT:pool_rpm_limit:wb-shared:2/2"):
+            live_host._prepare_task_quota(SimpleNamespace(id="t-l3", binding_ref="wb-ai", executor_kind="opencode", status="QUEUED"))
+    finally:
+        if old_cache is None:
+            os.environ.pop("REVERSE_AGENT_MAGPIE_CACHE", None)
+        else:
+            os.environ["REVERSE_AGENT_MAGPIE_CACHE"] = old_cache
+        if old_exe is None:
+            os.environ.pop("REVERSE_AGENT_MAGPIE_EXE", None)
+        else:
+            os.environ["REVERSE_AGENT_MAGPIE_EXE"] = old_exe
+    raw_conn.close()

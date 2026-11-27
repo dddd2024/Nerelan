@@ -378,3 +378,44 @@ def test_non_mapping_external_yields_unavailable():
     view = build_resource_view(store, dict, external=lambda: ["not", "a", "mapping"])
     assert view["external_sources"]["magpie"] == {"status": "unavailable"}
     assert len(view["resources"]) == 1
+
+
+def test_parse_quotas_preserves_and_validates_promotional_scope():
+    raw = quota()
+    raw["windows"].append({
+        "name": "Limited-time Free Promo",
+        "used": 10,
+        "remaining": 90,
+        "promotional": True,
+        "freeUntil": "2026-10-15T10:00:00Z",
+        "models": ["glm-5.3", "kimi-k3"],
+    })
+    fresh = parse_quotas(envelope(raw), NOW)[0]
+    assert fresh["state"] == "FRESH"
+    assert len(fresh["windows"]) == 3
+    promo = fresh["windows"][2]
+    assert promo["promotional"] is True
+    assert promo["free_until"] == "2026-10-15T10:00:00+00:00"
+    assert promo["models"] == ["glm-5.3", "kimi-k3"]
+
+    stale = deepcopy(raw)
+    stale["readAt"] = "2026-10-15T06:00:00Z"
+    parsed_stale = parse_quotas(envelope(stale), NOW)[0]
+    assert parsed_stale["state"] == "STALE"
+    assert len(parsed_stale["cached_windows"]) == 3
+    assert parsed_stale["cached_windows"][2]["models"] == ["glm-5.3", "kimi-k3"]
+
+    for bad_patch in (
+        {"models": "glm-5.3"},
+        {"models": [123]},
+        {"models": [""]},
+        {"models": [f"{PRIVATE[0]}-secret"]},
+        {"promotional": "yes"},
+        {"freeUntil": "not-a-date"},
+    ):
+        bad = quota()
+        bad["windows"].append({"name": "Promo", "used": 0, "remaining": 100, **bad_patch})
+        parsed_bad = parse_quotas(envelope(bad), NOW)[0]
+        assert parsed_bad["reason"] == "invalid_window"
+        assert parsed_bad["windows"] == []
+        assert all(secret not in json.dumps(parsed_bad) for secret in PRIVATE)

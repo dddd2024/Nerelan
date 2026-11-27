@@ -14,7 +14,7 @@ from . import model_review_transport
 from .run_store import TaskStoreError
 
 from .quota_guard import CONFIRMED_EXHAUSTION_REASONS
-from .routing_inputs import requirements, reset_decision, routing_group_id, upstream_namespace
+from .routing_inputs import effective_pool_limit_for, requirements, reset_decision, routing_group_id, upstream_namespace
 from .resource_allowances import urgency
 import re
 import time
@@ -318,7 +318,8 @@ class ModelSelectionError(ValueError):
             self.decision["pin"] = pin
             self.decision["pin_filter"] = pin_row.get("filter") if pin_row else "pin_not_candidate"
         resources = [row for row in excluded if row.get("filter") in {
-            "account_quarantined", "quota_exhausted", "weekly_pace", "pool_concurrency_limit"}
+            "account_quarantined", "quota_exhausted", "weekly_pace",
+            "pool_concurrency_limit", "pool_rpm_limit", "pool_tpm_limit"}
                      and (not pin or row.get("binding_id") == pin)]
         if resources:
             due = [row["retry_at"] for row in resources if type(row.get("retry_at")) in (int, float)
@@ -342,7 +343,9 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                  stall_tier: int = 0, groups: Mapping[str, Any] | None = None,
                  window_pool: Collection[str] | None = None,
                  in_flight_by_upstream: Mapping[str, int] | None = None,
-                 pool_limits: Mapping[str, Mapping[str, Any]] | None = None) -> dict[str, Any]:
+                 pool_limits: Mapping[str, Mapping[str, Any]] | None = None,
+                 rpm_by_pool: Mapping[str, int] | None = None,
+                 tpm_by_pool: Mapping[str, int] | None = None) -> dict[str, Any]:
     """Pick from public binding metadata and precomputed quota observations.
 
     Scores prefer known availability/readiness, then quota, cost, success and speed.
@@ -522,14 +525,23 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             reason = "model_refused"
         elif refused_models and tier < refusal_tier:
             reason = "refusal_retry_tier"
-        elif in_flight_by_upstream and pool_limits:
-            pool_key = upstream_namespace(candidate.get("model_id")) or str(
+        elif pool_limits and (in_flight_by_upstream or rpm_by_pool or tpm_by_pool):
+            raw_key = upstream_namespace(candidate.get("model_id")) or str(
                 candidate.get("account_ref") or candidate.get("connection_id") or ""
             ).lower()
-            cap = (pool_limits.get(pool_key) or {}).get("max_in_flight") if pool_key else None
-            in_flight = int(in_flight_by_upstream.get(pool_key) or 0) if pool_key else 0
+            counter_key, pool_cfg = effective_pool_limit_for(raw_key, pool_limits) if raw_key else ("", {})
+            cap = pool_cfg.get("max_in_flight")
+            rpm_cap = pool_cfg.get("rpm_limit")
+            tpm_cap = pool_cfg.get("tpm_limit")
+            in_flight = int((in_flight_by_upstream or {}).get(counter_key) or 0) if counter_key else 0
+            rpm_used = int((rpm_by_pool or {}).get(counter_key) or 0) if counter_key else 0
+            tpm_used = int((tpm_by_pool or {}).get(counter_key) or 0) if counter_key else 0
             if type(cap) is int and cap > 0 and in_flight >= cap:
                 reason = "pool_concurrency_limit"
+            elif type(rpm_cap) is int and rpm_cap > 0 and rpm_used >= rpm_cap:
+                reason = "pool_rpm_limit"
+            elif type(tpm_cap) is int and tpm_cap > 0 and tpm_used >= tpm_cap:
+                reason = "pool_tpm_limit"
         if reason:
             exclusion = {"binding_id": candidate["binding_id"], "model_id": candidate["model_id"], "filter": reason}
             if reason == "executor_unavailable":
@@ -544,7 +556,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             elif reason == "quota_exhausted":
                 from .quota_guard import parse_time
                 exclusion["retry_at"] = parse_time(quota.get("until"))
-            elif reason == "pool_concurrency_limit":
+            elif reason in {"pool_concurrency_limit", "pool_rpm_limit", "pool_tpm_limit"}:
                 exclusion["retry_at"] = float(now + 30.0)
             excluded.append(exclusion)
             excluded_tiers[candidate["binding_id"]] = tier
@@ -572,10 +584,21 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         availability_penalty = candidate.get("availability", {}).get("penalty", 0.)
         # Use a time-limited allowance or expiring credits before they lapse (#1471).
         resource_urgency = urgency(candidate.get("resources"), now=now)
-        raw_mult = candidate.get("credit_multiplier", override.get("credit_multiplier", 1.0))
+        mult_info = candidate.get("credit_multiplier_info") if isinstance(candidate.get("credit_multiplier_info"), Mapping) else None
+        if mult_info is not None:
+            mult_source = str(mult_info.get("source") or "unknown")
+            raw_mult = mult_info.get("effective")
+        else:
+            raw_mult = candidate.get("credit_multiplier", override.get("credit_multiplier", 1.0))
+            mult_source = "configured" if ("credit_multiplier" in candidate or "credit_multiplier" in override) else "default"
         credit_cost_penalty = (
             round(min(1.5, max(0.0, math.log2(float(raw_mult)) * 0.4)), 4)
             if type(raw_mult) in (int, float) and math.isfinite(raw_mult) and float(raw_mult) > 1.0
+            else 0.0
+        )
+        credit_cost_uncertainty_penalty = (
+            0.15
+            if (mult_source == "unknown" and cost_class == "subscription" and not candidate.get("paced_provider"))
             else 0.0
         )
         lightweight_task = (
@@ -596,11 +619,13 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         success = bucket.get("success_rate")
         reliability_penalty = measured_reliability_penalty(bucket)
         adjusted = (cost + tool_penalty + refusal_penalty + latency_penalty + availability_penalty
-                    + pace_penalty + reliability_penalty + credit_cost_penalty
+                    + pace_penalty + reliability_penalty + credit_cost_penalty + credit_cost_uncertainty_penalty
                     - context_bonus - resource_urgency - free_channel_fit_bonus)
         breakdown = {"availability_rank": avail_rank_val,
                      "base_cost": base_cost, "tool_penalty": tool_penalty, "availability_penalty": availability_penalty,
                      "resource_urgency": resource_urgency, "credit_cost_penalty": credit_cost_penalty,
+                     "credit_cost_uncertainty_penalty": credit_cost_uncertainty_penalty,
+                     "credit_multiplier_source": mult_source,
                      "free_channel_fit_bonus": free_channel_fit_bonus,
                      "pace_penalty": pace_penalty, "reliability_penalty": reliability_penalty,
                      "refusal_penalty": refusal_penalty, "context_bonus": context_bonus,
