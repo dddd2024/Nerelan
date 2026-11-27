@@ -2982,16 +2982,9 @@ class PlatformControlStore:
                 cost_enforced = int(window["max_cost_micro_units"]) > 0
 
                 def _has_known_tokens(obs: Any) -> bool:
-                    if obs["status"] == "OBSERVED":
-                        return all(
-                            obs[k] is not None
-                            for k in ("input_units", "output_units", "reasoning_units", "cache_read_units", "cache_write_units")
-                        )
-                    return (
-                        obs["status"] == "PARTIAL"
-                        and obs["source_kind"] == "native_summary"
-                        and obs["input_units"] is not None
-                        and obs["output_units"] is not None
+                    return obs["status"] == "OBSERVED" and all(
+                        obs[k] is not None
+                        for k in ("input_units", "output_units", "reasoning_units", "cache_read_units", "cache_write_units")
                     )
 
                 def _has_known_cost(obs: Any) -> bool:
@@ -3009,6 +3002,7 @@ class PlatformControlStore:
                     # an earlier role's observations to the paused attempt.
                     unknown_count = max(1, unknown_count)
                 usage_unknown = bool(unknown_count)
+                has_partial = any(o["status"] == "PARTIAL" for o in observations)
                 host_zero = not observations and self._completed_host_checker(task_id)
                 if not observations and task["executor_kind"] != "deterministic_fixture" and not host_zero:
                     usage_unknown = True
@@ -3024,10 +3018,7 @@ class PlatformControlStore:
                         # (cache reads at 0.1, cache writes at 1.25), so a cached
                         # route no longer burns the budget like fresh input. The
                         # raw counters stay untouched in the observations.
-                        units = cost_equivalent_units(
-                            observation,
-                            unknown_as_zero=(observation["status"] == "PARTIAL" and observation["source_kind"] == "native_summary"),
-                        )
+                        units = cost_equivalent_units(observation)
                         if units is None:
                             usage_unknown = True
                             unknown_count = max(1, unknown_count)
@@ -3110,21 +3101,29 @@ class PlatformControlStore:
                 ]
                 if count_completion:
                     assignments.append("tasks_completed = tasks_completed + 1")
-                owner_window = window["confirmation_mode"] == OWNER_WINDOW_MODE
                 # Owner decision 2026-11-09: in an Owner window a free model's usage does not
                 # count toward the Owner's token or cost cap (only Claude and Codex are paid).
                 # The observation and the reservation state stay as recorded; only the window
                 # charge is zero, so neither an overrun nor unknown usage stops the window.
-                free_route = owner_window and self._task_route_is_free(cur, task_id)
                 # Owner decision 2026-11-08: in an Owner window an attempt with unknown usage
                 # (a timeout, a lost usage report) is charged its whole reservation, or its
                 # partial readings when they say more, and the window goes on. Usage stays
                 # UNKNOWN and the reservation is not released; only a charge that reaches the
                 # Owner's cap stops the window.
                 owner_charge = usage_unknown and owner_window
+                # #1531: PARTIAL observations carry usable token evidence even outside
+                # Owner windows — settle the window at measured partial tokens instead of
+                # blocking immediately on first PARTIAL attempt, while keeping reservations
+                # conservative (UNKNOWN) and cash caps fail-closed when cost is missing.
+                partial_charge = (
+                    has_partial
+                    and usage_unknown
+                    and not owner_window
+                    and (not cost_enforced or cost_unknown_count == 0)
+                )
                 if free_route:
                     values[0] = values[1] = 0
-                elif owner_charge:
+                elif owner_charge or partial_charge:
                     # The same weighted unit as the charge above, so a partial
                     # reading and the reservation compare like with like.
                     partial_tokens = sum(
@@ -3132,14 +3131,20 @@ class PlatformControlStore:
                         for observation in observations
                     )
                     partial_cost = sum(int(observation["cost_micro_units"] or 0) for observation in observations)
-                    values[0] = max(int(reservation["reserved_token_units"]), partial_tokens)
-                    values[1] = max(int(reservation["reserved_cost_micro_units"]), partial_cost)
-                    reached = ((token_enforced and int(window["observed_token_units"]) + values[0]
-                                >= int(window["max_token_units"]))
-                               or (cost_enforced and int(window["observed_cost_micro_units"]) + values[1]
-                                   >= int(window["max_cost_micro_units"])))
-                    if reached:
-                        assignments.extend(["status = 'BLOCKED'", "stop_reason = 'usage_unknown_budget_reached'"])
+                    if owner_charge:
+                        values[0] = max(int(reservation["reserved_token_units"]), partial_tokens)
+                        values[1] = max(int(reservation["reserved_cost_micro_units"]), partial_cost)
+                    else:
+                        values[0] = partial_tokens
+                        values[1] = partial_cost
+                    token_reached = token_enforced and int(window["observed_token_units"]) + values[0] >= int(window["max_token_units"])
+                    cost_reached = cost_enforced and int(window["observed_cost_micro_units"]) + values[1] >= int(window["max_cost_micro_units"])
+                    if token_reached or cost_reached:
+                        if owner_charge:
+                            assignments.extend(["status = 'BLOCKED'", "stop_reason = 'usage_unknown_budget_reached'"])
+                        else:
+                            stop = "window_cost_budget_exhausted" if cost_reached and not token_reached else "window_token_budget_exhausted"
+                            assignments.extend(["status = 'BLOCKED'", f"stop_reason = '{stop}'", "enforcement_class = 'USAGE_UNKNOWN'"])
                 elif usage_unknown and (token_enforced or cost_enforced
                                         or window["enforcement_class"] != "POST_RUN_OBSERVED"):
                     # Unknown usage cannot be checked against a budget, and a hard-admission window

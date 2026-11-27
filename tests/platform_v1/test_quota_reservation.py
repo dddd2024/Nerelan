@@ -837,8 +837,10 @@ def test_token_budget_window_reconciles_unpriced_and_codex_partial_observations(
     control.complete_task_claim(window_id=token_win.id, task_id=t1.id, owner="o", epoch=e1, result="terminal")
     r1 = store._conn.execute("SELECT state, observed_token_units, observed_cost_micro_units FROM platform_budget_reservations WHERE task_id=?", (t1.id,)).fetchone()
     assert (r1["state"], r1["observed_token_units"], r1["observed_cost_micro_units"]) == ("RECONCILED", 1250, None)
+    assert control.get_window(token_win.id).observed_token_units == 1250
 
-    # 2. Codex PARTIAL native_summary with cache_write_units=None settles measured tokens (not full reservation, #1531).
+    # 2. Codex PARTIAL native_summary keeps reservation conservative (UNKNOWN, #1323) while charging
+    # the non-owner token-only window at measured partial tokens (4600) instead of blocking or charging full reservation (#1531).
     t2 = store.create_task(title="codex-partial", executor_kind="codex", binding_ref="b-codex")
     e2, _ = control.claim_task(window_id=token_win.id, task_id=t2.id, owner="o", lease_ms=60_000)
     store.append_usage_observation(
@@ -850,10 +852,12 @@ def test_token_budget_window_reconciles_unpriced_and_codex_partial_observations(
     )
     control.complete_task_claim(window_id=token_win.id, task_id=t2.id, owner="o", epoch=e2, result="terminal")
     r2 = store._conn.execute("SELECT state, observed_token_units, observed_cost_micro_units FROM platform_budget_reservations WHERE task_id=?", (t2.id,)).fetchone()
-    # 4000 + 500 + 1000*0.1 = 4600 (reasoning already folded into output for native_summary)
-    assert (r2["state"], r2["observed_token_units"], r2["observed_cost_micro_units"]) == ("RECONCILED", 4600, None)
+    assert (r2["state"], r2["observed_token_units"], r2["observed_cost_micro_units"]) == ("UNKNOWN", None, None)
+    w2 = control.get_window(token_win.id)
+    # 1250 + (4000 + 500 + 1000*0.1 = 4600) = 5850; reasoning already folded into output for native_summary
+    assert (w2.status, w2.observed_token_units, w2.unknown_observation_count) == ("ACTIVE", 5850, 1)
 
-    # 3. Cash-enforced window remains fail-closed UNKNOWN when cost_micro_units is None.
+    # 3. Cash-enforced window remains fail-closed UNKNOWN when cost_micro_units is None (both OBSERVED and PARTIAL).
     control.stop_window(token_win.id)
     cash_win = _budget_window(autonomy, policy_id="cash-capped", max_tokens=100_000, reservation=50_000)
     control._conn.execute("UPDATE platform_autonomous_windows SET max_cost_micro_units = 5000000 WHERE id = ?", (cash_win.id,))
@@ -869,5 +873,39 @@ def test_token_budget_window_reconciles_unpriced_and_codex_partial_observations(
     )
     control.complete_task_claim(window_id=cash_win.id, task_id=t3.id, owner="o", epoch=e3, result="terminal")
     r3 = store._conn.execute("SELECT state FROM platform_budget_reservations WHERE task_id=?", (t3.id,)).fetchone()
+    w3 = control.get_window(cash_win.id)
     assert r3["state"] == "UNKNOWN"
+    assert (w3.status, w3.stop_reason) == ("BLOCKED", "usage_unknown")
+
+    # 4. Non-owner token-only window blocks with window_token_budget_exhausted when PARTIAL reaches cap.
+    cap_win = _budget_window(autonomy, policy_id="partial-cap", max_tokens=500, reservation=500)
+    t4 = store.create_task(title="partial-cap-task", executor_kind="opencode")
+    e4, _ = control.claim_task(window_id=cap_win.id, task_id=t4.id, owner="o", lease_ms=60_000)
+    store.append_usage_observation(
+        t4.id, observation_id="oc-partial-cap", execution_id="e4", role="executor",
+        model_id="openai-compatible/trae-cn/glm-5.3-max", provider_id="openai-compatible",
+        source_kind="step_finish", source_id="s4", status="PARTIAL",
+        input_units=500, output_units=0, reasoning_units=0, cache_read_units=0, cache_write_units=0,
+        cost_micro_units=None,
+    )
+    control.complete_task_claim(window_id=cap_win.id, task_id=t4.id, owner="o", epoch=e4, result="terminal")
+    w4 = control.get_window(cap_win.id)
+    assert (w4.status, w4.stop_reason, w4.enforcement_class) == ("BLOCKED", "window_token_budget_exhausted", "USAGE_UNKNOWN")
+
+    # 5. Cash-enforced non-owner window with PARTIAL row missing cost_micro_units fails closed (usage_unknown).
+    cash_partial_win = _budget_window(autonomy, policy_id="cash-partial-fail-closed", max_tokens=100_000, reservation=50_000)
+    control._conn.execute("UPDATE platform_autonomous_windows SET max_cost_micro_units = 5000000 WHERE id = ?", (cash_partial_win.id,))
+    control._conn.commit()
+    t5 = store.create_task(title="cash-partial-missing-cost", executor_kind="codex", binding_ref="b-codex")
+    e5, _ = control.claim_task(window_id=cash_partial_win.id, task_id=t5.id, owner="o", lease_ms=60_000)
+    store.append_usage_observation(
+        t5.id, observation_id="codex-partial-missing-cost", execution_id="e5", role="executor",
+        model_id="gpt-6.1-sol", provider_id="codex",
+        source_kind="native_summary", source_id="nat-5", status="PARTIAL",
+        input_units=1000, output_units=100, reasoning_units=0, cache_read_units=0, cache_write_units=None,
+        cost_micro_units=None,
+    )
+    control.complete_task_claim(window_id=cash_partial_win.id, task_id=t5.id, owner="o", epoch=e5, result="terminal")
+    w5 = control.get_window(cash_partial_win.id)
+    assert (w5.status, w5.stop_reason) == ("BLOCKED", "usage_unknown")
     store._conn.close()
