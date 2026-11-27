@@ -18,6 +18,7 @@ credential relay used internally during execution.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from http.server import ThreadingHTTPServer
 import collections
@@ -26,6 +27,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import sqlite3
 import subprocess
 import threading
 import time
@@ -800,8 +802,14 @@ class CombinedTrustedHost:
             raise TaskStoreError("model_review_artifact_input_required")
         import random
         from .model_router import capability, select_model, served_model
-        from .routing_inputs import inherit_group_availability, paced_group_provider
-        from .routing_inputs import read_overrides, weekly_pace_config
+        from .routing_inputs import (
+            credit_multiplier_for,
+            effective_pool_limits,
+            inherit_group_availability,
+            paced_group_provider,
+            read_overrides,
+            weekly_pace_config,
+        )
         from .routing_capabilities import read_capability_table
         try:
             owner = read_overrides(getattr(self._store, "_state_path", None))
@@ -847,6 +855,10 @@ class CombinedTrustedHost:
         from .resource_allowances import effective_cost
         allowances = self._resource_allowances(refresh=not forecast)
         allowance_now = time.time()
+        in_flight_by_upstream = None if forecast else self._in_flight_by_upstream(
+            by_id, connections, exclude_task_id=getattr(task, "id", None),
+        )
+        pool_limits = effective_pool_limits(owner)
         for binding in bindings:
             connection = connections.get(binding["connection_id"], {})
             native = connection.get("auth_method") == "external_cli_session"
@@ -918,6 +930,7 @@ class CombinedTrustedHost:
                                "paced_provider": paced_provider,
                                # Where the weekly figure came from, or why there is none.
                                "weekly_pace_input": pace_input,
+                               "credit_multiplier": credit_multiplier_for(binding, owner),
                                "cost_class": cost_class, "resources": resources}
             # Evaluate the same pure hard filters before spending a probe. A
             # catalog entry excluded by scope, quota or calibration costs no call.
@@ -972,7 +985,9 @@ class CombinedTrustedHost:
                                 account_feedback=feedback, weekly_pace=weekly_pace_config(owner),
                                 avoid_bindings=tuple(avoid_bindings),
                                 stall_tier=stall_tier if avoid_bindings and type(stall_tier) is int else 0,
-                                groups=owner.get("groups", {}), window_pool=pool_refs)
+                                groups=owner.get("groups", {}), window_pool=pool_refs,
+                                in_flight_by_upstream=in_flight_by_upstream,
+                                pool_limits=pool_limits)
             decision["context_packet_reservation"] = 16384 + 256
             if window_pool is not None:
                 decision["pool_source"] = window_pool["pool_source"]
@@ -989,6 +1004,69 @@ class CombinedTrustedHost:
                 error.decision["pool_source"] = window_pool["pool_source"]
                 error.decision["pool_size"] = len(pool_refs)
             raise error from exc
+
+    @staticmethod
+    def _binding_pool_key(
+        binding: Mapping[str, Any],
+        connections: Mapping[str, Mapping[str, Any]],
+    ) -> str:
+        from .routing_inputs import upstream_namespace
+        pool_key = upstream_namespace(binding.get("model_id"))
+        if pool_key:
+            return pool_key
+        conn = connections.get(binding.get("connection_id") or "", {})
+        return str(conn.get("account_ref") or conn.get("connection_id") or "").lower()
+
+    def _in_flight_by_upstream(
+        self,
+        bindings_by_id: Mapping[str, Mapping[str, Any]],
+        connections: Mapping[str, Mapping[str, Any]],
+        *,
+        exclude_task_id: str | None = None,
+        fail_closed: bool = False,
+    ) -> dict[str, int]:
+        """Count active RUNNING or claimed tasks grouped by physical upstream pool (#1533)."""
+        task_store = getattr(self, "_task_store", None)
+        conn = getattr(task_store, "_conn", None)
+        if conn is None:
+            return {}
+        now_ms = int(time.time() * 1000)
+        counts: dict[str, int] = {}
+        lock = getattr(task_store, "_lock", None) or nullcontext()
+        try:
+            with lock:
+                has_claims = conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'platform_coordinator_claims'"
+                ).fetchone()
+                if has_claims:
+                    rows = conn.execute(
+                        "SELECT id, binding_ref FROM tasks WHERE status = 'RUNNING' AND binding_ref != '' "
+                        "UNION "
+                        "SELECT t.id, t.binding_ref FROM tasks t "
+                        "JOIN platform_coordinator_claims c ON c.task_id = t.id "
+                        "WHERE c.status = 'ACTIVE' AND c.expires_at_ms > ? AND t.binding_ref != ''",
+                        (now_ms,),
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        "SELECT id, binding_ref FROM tasks WHERE status = 'RUNNING' AND binding_ref != ''"
+                    ).fetchall()
+        except sqlite3.Error as exc:
+            logging.getLogger(__name__).warning("pool concurrency count failed: %s", exc)
+            if fail_closed:
+                raise TaskStoreError("QUOTA_WAIT:pool_concurrency_check_failed") from exc
+            return {}
+        for row in rows:
+            if exclude_task_id and str(row["id"] or "") == exclude_task_id:
+                continue
+            bref = str(row["binding_ref"] or "")
+            binding = bindings_by_id.get(bref)
+            if not binding:
+                continue
+            pool_key = self._binding_pool_key(binding, connections)
+            if pool_key:
+                counts[pool_key] = counts.get(pool_key, 0) + 1
+        return counts
 
     def _live_window_pool(self) -> list[dict[str, Any]]:
         """Bindings a continuous Owner window's Goals may run on now (Owner decision 2026-11-17, #1667)."""
@@ -1462,6 +1540,40 @@ class CombinedTrustedHost:
                 raise TaskStoreError("QUOTA_WAIT:binding_unknown")
             return
         connection = self._store.get_connection_public(binding["connection_id"])
+        from .routing_inputs import effective_pool_limits, read_overrides
+        try:
+            owner_overrides = read_overrides(getattr(self._store, "_state_path", None))
+        except ValueError:
+            owner_overrides = {}
+        pool_limits = effective_pool_limits(owner_overrides)
+        all_bindings = self._store.list_bindings_public()
+        bindings_by_id = {b["binding_id"]: b for b in all_bindings}
+        list_conns = getattr(self._store, "list_connections_public", None)
+        if callable(list_conns):
+            conns_by_id = {c["connection_id"]: c for c in list_conns()}
+        else:
+            conns_by_id = {binding["connection_id"]: connection}
+            for b in all_bindings:
+                cid = b.get("connection_id")
+                if cid and cid not in conns_by_id:
+                    try:
+                        conns_by_id[cid] = self._store.get_connection_public(cid)
+                    except KeyError:
+                        continue
+        pool_key = CombinedTrustedHost._binding_pool_key(binding, conns_by_id)
+        pool_limit = (pool_limits.get(pool_key) or {}).get("max_in_flight")
+        in_flight_fn = getattr(self, "_in_flight_by_upstream", None)
+        if isinstance(pool_limit, int) and pool_limit > 0 and callable(in_flight_fn):
+            # Serialized within the single coordinator loop before claim_task();
+            # across independent host processes this check acts as a soft bound.
+            in_flight = in_flight_fn(
+                bindings_by_id,
+                conns_by_id,
+                exclude_task_id=task.id,
+                fail_closed=True,
+            ).get(pool_key, 0)
+            if in_flight >= pool_limit:
+                raise TaskStoreError(f"QUOTA_WAIT:pool_concurrency_limit:{pool_key}:{in_flight}/{pool_limit}")
         feedback_identity = ({"binding_ref": binding["binding_id"],
                               "account_ref": connection.get("account_ref") or connection["connection_id"]}
                              if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1" else None)
