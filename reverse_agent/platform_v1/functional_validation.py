@@ -509,9 +509,11 @@ _RUNNER_MISSING_PATTERNS = (
     "command not found",
     "no module named pytest",
     "no module named 'pytest'",
-    "cannot find module",
+    "cannot find module 'jest'",
+    "cannot find module 'vitest'",
+    "cannot find module 'npm'",
     "could not determine executable to run",
-    "enoent",
+    "spawn enoent",
 )
 _CANDIDATE_ABORT_MARKERS = (
     "error collecting",
@@ -519,8 +521,15 @@ _CANDIDATE_ABORT_MARKERS = (
     "syntaxerror",
     "indentationerror",
     "importerror",
+    "modulenotfounderror",
     "nameerror",
     "conftest.py",
+    "pretest",
+    "posttest",
+    "npm err! code elifecycle",
+    "cannot find module './",
+    "cannot find module '../",
+    "err_module_not_found",
 )
 
 

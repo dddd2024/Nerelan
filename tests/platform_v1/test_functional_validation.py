@@ -534,21 +534,25 @@ def test_repository_base_respects_configured_base_ref_or_origin_main(tmp_path, m
             fv.repository_base("owner/sample")
 
 
-def test_decode_output_supports_utf8_and_locale_fallback():
+def test_decode_output_supports_utf8_and_locale_fallback(monkeypatch):
     assert fv._decode_output("ok\n".encode("utf-8")) == "ok\n"
-    raw_gbk = "不是内部或外部命令".encode("gbk", errors="replace")
-    decoded = fv._decode_output(raw_gbk)
-    assert isinstance(decoded, str) and len(decoded) > 0
+    raw_gbk = "不是内部或外部命令".encode("gbk")
+    monkeypatch.setattr(fv.locale, "getpreferredencoding", lambda do_setlocale=True: "gbk")
+    assert fv._decode_output(raw_gbk) == "不是内部或外部命令"
 
 
 @pytest.mark.parametrize("exit_code,output", [
     (127, b"sh: pytest: command not found\n"),
     (9009, "'pytest' 不是内部或外部命令，也不是可运行的程序\r\n".encode("gbk")),
     (1, b"C:\\Python\\python.exe: No module named pytest\n"),
+    (1, b"Error: Cannot find module 'vitest'\n"),
+    (1, b"Error: spawn ENOENT\n"),
 ])
 def test_missing_runner_reports_functional_check_not_run(implementation, monkeypatch, exit_code, output):
     root, base, store, task_id = implementation
     (root / "app.py").write_text("value = 2\n", encoding="utf-8")
+    if "gbk" in repr(output) or exit_code == 9009:
+        monkeypatch.setattr(fv.locale, "getpreferredencoding", lambda do_setlocale=True: "gbk")
     monkeypatch.setattr(
         fv,
         "_run_process",
@@ -577,6 +581,9 @@ def test_missing_runner_reports_functional_check_not_run(implementation, monkeyp
     (2, b"=========================== short test summary info ===========================\nERROR collecting test_app.py\n"),
     (1, b"E   SyntaxError: invalid syntax\n"),
     (1, b"npm ERR! code ELIFECYCLE\nnpm ERR! mypkg@1.0.0 pretest: `eslint .`\nnpm ERR! Exit status 1\n"),
+    (127, b"npm ERR! code ELIFECYCLE\nnpm ERR! mypkg@1.0.0 pretest: `sh: eslint: not found`\n"),
+    (1, b"Error: Cannot find module './utils'\n"),
+    (1, b"Error: ENOENT: no such file or directory, open 'missing.json'\n"),
 ])
 def test_zero_tests_collection_or_pretest_failure_stays_functional_check_failed(implementation, monkeypatch, exit_code, output):
     root, base, store, task_id = implementation
