@@ -537,6 +537,121 @@ def test_verified_evidence_accepts_legacy_unnormalized_findings(review_setup):
         model_review.verified_evidence(store, reloaded, run, require_accept=True)
 
 
+def test_review_round_limit_records_draft_pr_handoff_and_active_issue_dedup(review_setup):
+    import hashlib
+    from reverse_agent.platform_v1.autonomy import AutonomyService, KNOWN_OPERATIONS
+    from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
+    from reverse_agent.platform_v1.goal_service import GoalService
+    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+
+    store, router, producer, consumer, created, options, reviews_dir = review_setup
+    options["response"] = REJECT
+    assert not run_review(review_setup).success
+    options["response"] = ACCEPT
+    prod = store.get_task(producer)
+    goal_id = json.loads(next(r for r in prod.evidence_refs if r["category"] == "ArtifactContract")["detail"])["goal_id"]
+    store._conn.execute("UPDATE platform_goals SET orchestration_mode = 'agent_team' WHERE id = ?", (goal_id,))
+    store._conn.execute("UPDATE platform_autonomous_windows SET max_retries = 10")
+    store._conn.commit()
+    control = PlatformControlStore(store)
+    seen_prefer = []
+
+    def resolver(plan_task, *, goal=None, prefer_binding=None, **_kw):  # noqa: ARG001
+        seen_prefer.append(prefer_binding)
+        return {"binding_ref": "b-other", "executor_kind": "codex", "model_id": "gpt-6-sol"}
+
+    gs_limit = GoalService(store=store, control_store=control, task_resolver=resolver, max_review_rounds=1)
+    assert gs_limit._repair_rejected_reviews(goal_id) == ()
+    cons_after = store.get_task(consumer)
+    assert cons_after.status == "BLOCKED"
+    assert cons_after.failure_classification == "model_review_round_limit"
+    decision = json.loads(cons_after.failure_detail)
+    assert decision["handoff_action"] == "open_draft_pr"
+    assert decision["producer_task_id"] == producer
+    assert len(decision["open_findings"]) == 1
+    assert any(
+        e.type == "MODEL_SELECTION_FAILED" and e.metadata.get("handoff_action") == "open_draft_pr"
+        for e in store.get_events(consumer)
+    )
+    from reverse_agent.platform_v1.publication_controller import _round_limit_findings_markdown
+    handoff_md = _round_limit_findings_markdown(store, control, goal_id)
+    assert "### Open Review Findings (Round Limit Reached)" in handoff_md
+    assert "app.py:1: Incorrect value" in handoff_md
+    assert decision["omitted_open_findings"] == 0
+    # Verify >6 findings plus omitted count render without silent loss.
+    store._conn.execute(
+        "UPDATE tasks SET failure_detail = ? WHERE id = ?",
+        (json.dumps({
+            "reason": "model_review_round_limit",
+            "handoff_action": "open_draft_pr",
+            "open_findings": [{"path": f"f{i}.py", "line": i + 1, "severity": "high", "message": f"msg-{i}"} for i in range(8)],
+            "omitted_open_findings": 3,
+        }), consumer),
+    )
+    store._conn.commit()
+    handoff_md_many = _round_limit_findings_markdown(store, control, goal_id)
+    assert "f7.py:8: msg-7" in handoff_md_many
+    assert "(+3 additional open findings omitted)" in handoff_md_many
+
+    # Active source issue dedup during launch and explicit create(deduplicate_active_issue=True).
+    win_id = control.get_goal(goal_id).window_id
+    repo = control.get_goal(goal_id).repository
+    obj = f"Resolve https://github.com/{repo}/issues/77\n\n# Issue 77"
+    dig = hashlib.sha256(obj.encode()).hexdigest()[:16]
+    gs = GoalService(store=store, control_store=control)
+    g1 = gs.create({
+        "objective": obj, "repository": repo, "executor_kind": "deterministic_fixture",
+        "orchestration_mode": "single",
+        "idempotency_key": f"quick-start:{repo}:issue-77:{dig}:1",
+    })
+    gs.plan(g1.id, expected_revision=1, tasks=[{"id": "A", "title": "Fix 77", "instruction": "Fix it"}])
+    gs.approve(g1.id, expected_revision=1)
+    g1 = gs.launch(g1.id, expected_revision=1, window_id=win_id)
+    assert gs.create({
+        "objective": obj, "repository": repo,
+        "idempotency_key": f"quick-start:{repo}:issue-77:{dig}:2",
+        "deduplicate_active_issue": True,
+    }).id == g1.id
+
+    g2 = gs.create({
+        "objective": obj, "repository": repo, "executor_kind": "deterministic_fixture",
+        "orchestration_mode": "single",
+        "idempotency_key": f"quick-start:{repo}:issue-77:{dig}:2",
+    })
+    gs.plan(g2.id, expected_revision=1, tasks=[{"id": "A", "title": "Fix 77", "instruction": "Fix it"}])
+    gs.approve(g2.id, expected_revision=1)
+    with pytest.raises(TaskStoreError, match=f"active_source_issue_goal_already_running:{g1.id}"):
+        gs.launch(g2.id, expected_revision=1, window_id=win_id)
+
+
+def test_model_review_refresh_passes_prefer_binding_when_supported(review_setup):
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
+    from reverse_agent.platform_v1.goal_service import GoalService
+    from test_model_review_feedback import repair_and_review
+
+    store, _, producer, consumer, _, options, _ = review_setup
+    options["response"] = REJECT
+    assert not run_review(review_setup).success
+    control = PlatformControlStore(store)
+    goal_id = control.goal_id_for_task(producer)
+    store._conn.execute("UPDATE platform_goals SET orchestration_mode = 'agent_team' WHERE id = ?", (goal_id,))
+    store._conn.execute("UPDATE platform_autonomous_windows SET max_retries = 10")
+    store._conn.commit()
+    old_binding = store.get_task(consumer).binding_ref
+    seen_prefer = []
+
+    def resolve_with_prefer(plan_task, *, goal=None, prefer_binding=None, **_kw):  # noqa: ARG001
+        seen_prefer.append(prefer_binding)
+        return {"executor_kind": "opencode", "binding_ref": "local-test-binding",
+                "reason": "fixture", "model_id": "local/test"}
+
+    gs = GoalService(store=store, control_store=control, task_resolver=resolve_with_prefer, max_review_rounds=3)
+    _, _, result = repair_and_review(review_setup, gs, goal_id, ACCEPT)
+    assert result.success
+    assert old_binding in seen_prefer
+
+
 def test_review_authors_ignores_pre_dispatch_blocked_and_unchanged_reused_repair(review_setup):
     store, _, producer, consumer, created, repo, base = review_setup
     prod = store.get_task(producer)

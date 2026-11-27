@@ -612,6 +612,23 @@ class GoalService:
         idempotency_key = str(payload.get("idempotency_key", "")).strip()
         if not idempotency_key:
             raise TaskStoreError("goal_idempotency_key_required")
+        if payload.get("deduplicate_active_issue"):
+            raw_num = payload.get("source_issue_number")
+            issue_num = int(raw_num) if type(raw_num) is int and raw_num > 0 else None
+            if issue_num is None:
+                from .goal_source_issue import source_issue
+                probe = GoalRecord(
+                    id="", title=title, objective=objective, repository=repository, status="DRAFT",
+                    revision=1, spec_markdown="", plan_markdown="", tasks=(), acceptance_criteria=(),
+                    artifact_digest="", executor_kind="opencode", orchestration_mode="single",
+                    binding_ref="", policy_ref="", window_id="", idempotency_key=idempotency_key,
+                    created_at="", updated_at="",
+                )
+                issue_num = source_issue(probe)
+            if issue_num is not None:
+                active = self.active_source_issue_goal(repository, issue_num)
+                if active is not None:
+                    return active
         return self.control_store.create_goal(
             title=title,
             objective=objective,
@@ -708,10 +725,33 @@ class GoalService:
             raise TaskStoreError("goal_requires_active_window")
         if goal.repository not in window.repositories:
             raise TaskStoreError("goal_repository_outside_window")
+        from .goal_source_issue import source_issue
+        issue_num = source_issue(goal)
+        if issue_num is not None:
+            for existing_goal, _, _ in self._iter_goals():
+                if (existing_goal.id == goal.id or existing_goal.repository != goal.repository
+                        or existing_goal.status != "RUNNING" or not existing_goal.window_id):
+                    continue
+                if source_issue(existing_goal) == issue_num:
+                    try:
+                        if self.control_store.get_window(existing_goal.window_id).status == "ACTIVE":
+                            raise TaskStoreError(f"active_source_issue_goal_already_running:{existing_goal.id}")
+                    except TaskStoreError as exc:
+                        if str(exc).startswith("active_source_issue_goal_already_running:"):
+                            raise
         if self.control_store.is_owner_window(window) and not _owner_window_admission:
             # The Owner confirmed this window's Goals by name; nothing else is launched into it.
             raise TaskStoreError("owner_window_goal_not_confirmed")
         planned_tasks = tuple(self._normalize_task(raw, seq=seq) for seq, raw in enumerate(goal.tasks))
+        if goal.executor_kind != "deterministic_fixture":
+            from .task_prevalidation import prevalidate_task
+            pv = prevalidate_task({
+                "title": goal.objective,
+                "repository": goal.repository,
+                "context_need": max((item.context_need for item in planned_tasks), default=0),
+            })
+            if not pv["ok"]:
+                raise TaskStoreError("pre_validation_failed:" + ",".join(pv["reasons"]))
         if self.control_store.is_strict_owner_window(window):
             if (goal.orchestration_mode != "single" or len(planned_tasks) != 1
                     or any(other.id != goal.id for other in self.control_store.list_window_goals(window_id))):
@@ -1666,9 +1706,12 @@ class GoalService:
                             base = self._approved_base(producer)
                             decision = None
                             if self.task_resolver is not None:
+                                import inspect
+                                author_kwargs = dict(self._review_authors(review_plan, goal, planned))
+                                if "prefer_binding" in inspect.signature(self.task_resolver).parameters:
+                                    author_kwargs["prefer_binding"] = failed.binding_ref
                                 try:
-                                    decision = self.task_resolver(review_plan, goal=goal,
-                                        **self._review_authors(review_plan, goal, planned))
+                                    decision = self.task_resolver(review_plan, goal=goal, **author_kwargs)
                                 except TaskStoreError as exc:
                                     if failed.status != "BLOCKED":  # re-blocking a BLOCKED task raises
                                         self.store.block_model_selection(failed.id, decision=getattr(exc, "decision", {"reason": str(exc)}))
@@ -1720,8 +1763,20 @@ class GoalService:
                     if (len(rounds) + 1 >= self.max_review_rounds
                             or not window.continuous and _routing_retries_spent(history) + 2 > window.max_retries):
                         if not budget_parked:  # still parked: nothing to record again
-                            self.store.block_model_selection(failed.id, decision={"reason":
-                                "model_review_round_limit" if len(rounds) + 1 >= self.max_review_rounds else "routing_retry_budget_exhausted"})
+                            round_limited = len(rounds) + 1 >= self.max_review_rounds
+                            decision_payload: dict[str, Any] = {
+                                "reason": "model_review_round_limit" if round_limited else "routing_retry_budget_exhausted"
+                            }
+                            if round_limited:
+                                raw_open = list(evidence["result"].get("findings") or ())
+                                kept_open = raw_open[:20]
+                                decision_payload.update({
+                                    "handoff_action": "open_draft_pr",
+                                    "producer_task_id": producer.id,
+                                    "open_findings": kept_open,
+                                    "omitted_open_findings": max(0, len(raw_open) - len(kept_open)),
+                                })
+                            self.store.block_model_selection(failed.id, decision=decision_payload)
                         continue
                     source_plan = planned[source_id]
                     base = self._approved_base(producer)

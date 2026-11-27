@@ -320,3 +320,27 @@ def test_zero_cost_accepted_runs_still_carry_failure_spend():
     record = update_break_even(runs)
     assert record["failure_cost_per_accepted"]["single"] == 30.0
     assert record["unit_cost_per_task"]["single"] > 0
+
+
+def test_fast_path_eligible_guards_r2_and_high_difficulty():
+    from reverse_agent.platform_v1.orchestration_selector import fast_path_eligible
+
+    small_r1 = fast_path_eligible({"difficulty": 2}, changed_paths=["reverse_agent/platform_v1/foo.py"])
+    assert small_r1["eligible"] is True and small_r1["recommended_mode"] == "single"
+    assert small_r1["requires_independent_review"] is True
+
+    hard = fast_path_eligible({"difficulty": 4}, changed_paths=["a.py"])
+    assert hard["eligible"] is False and hard["recommended_mode"] == "sequential_team"
+
+    r2 = fast_path_eligible({"difficulty": 1}, changed_paths=[".github/workflows/ci.yml"])
+    assert r2["eligible"] is False and r2["recommended_mode"] == "sequential_team"
+    assert fast_path_eligible({"difficulty": 1}, changed_paths=["./AGENTS.md"])["eligible"] is False
+    assert fast_path_eligible({"difficulty": 1}, changed_paths=["agents.md"])["eligible"] is False
+    assert fast_path_eligible({"difficulty": 1}, changed_paths=["x/../AGENTS.md"])["eligible"] is False
+    assert fast_path_eligible({"difficulty": 1}, changed_paths=["../outside.py"])["eligible"] is False
+
+    empty_scope = fast_path_eligible({"difficulty": 1}, changed_paths=[])
+    assert empty_scope["eligible"] is False and "unknown_scope_paths" in empty_scope["reasons"]
+
+    no_diff = fast_path_eligible({}, changed_paths=["a.py"])
+    assert no_diff["eligible"] is False and "unknown_difficulty" in no_diff["reasons"]

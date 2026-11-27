@@ -432,7 +432,13 @@ def _check_magpie_csv_invariants(
                 worker_cost += cost
 
     if probe_total == 0:
-        probe_inv = _invariant("probe_error_rate", "OK", 0.0, PROBE_ERROR_RATE_THRESHOLD, "0 Python-urllib probe rows")
+        probe_inv = _invariant(
+            "probe_error_rate",
+            "UNKNOWN",
+            None,
+            PROBE_ERROR_RATE_THRESHOLD,
+            "0 Python-urllib probe rows (no samples != 0% error rate)",
+        )
     else:
         err_rate = round(probe_err / probe_total, 4)
         probe_inv = _invariant(
@@ -495,6 +501,128 @@ def _load_magpie_cache_as_rows(cache_path: Path) -> list[dict[str, str]] | None:
     return adapted
 
 
+def _settlement_basis_breakdown(
+    conn: sqlite3.Connection, tables: set[str], cutoff_iso: str
+) -> dict[str, Any]:
+    """Separate multi-basis accounting across cash, list_price, credits, quota, and unknown."""
+    summary: dict[str, Any] = {
+        "usage_observations": {
+            "total": 0,
+            "list_price_known_rows": 0,
+            "list_price_usd": 0.0,
+            "provider_reported_known_rows": 0,
+            "provider_reported_usd": 0.0,
+            "zero_cost_rows": 0,
+            "unknown_rows": 0,
+        },
+        "budget_settlements": {
+            "cash_usd": {"rows": 0, "amount": 0.0},
+            "provider_reported_usd": {"rows": 0, "amount": 0.0},
+            "list_price_usd": {"rows": 0, "amount": 0.0},
+            "credits": {"rows": 0, "amount": 0.0},
+            "subscription_quota": {"rows": 0, "tokens": 0},
+            "confirmed_zero": {"rows": 0},
+            "unknown": {"rows": 0},
+        },
+    }
+    if "task_usage_observations" in tables:
+        cols = _table_columns(conn, "task_usage_observations")
+        status_expr = "COALESCE(status, 'UNKNOWN')" if "status" in cols else "'UNKNOWN'"
+        kind_expr = "COALESCE(source_kind, 'unknown')" if "source_kind" in cols else "'unknown'"
+        rows = conn.execute(
+            f"SELECT {status_expr} AS st, {kind_expr} AS kind, cost_micro_units FROM task_usage_observations WHERE created_at >= ?",
+            (cutoff_iso,),
+        ).fetchall()
+        obs = summary["usage_observations"]
+        for r in rows:
+            obs["total"] += 1
+            cost = r["cost_micro_units"]
+            if r["st"] not in {"OBSERVED", "PARTIAL"} or cost is None:
+                obs["unknown_rows"] += 1
+            elif int(cost) == 0:
+                obs["zero_cost_rows"] += 1
+            elif str(r["kind"]) == "magpie_measured":
+                obs["provider_reported_known_rows"] += 1
+                obs["provider_reported_usd"] = round(obs["provider_reported_usd"] + float(cost) / 1_000_000.0, 6)
+            else:
+                obs["list_price_known_rows"] += 1
+                obs["list_price_usd"] = round(obs["list_price_usd"] + float(cost) / 1_000_000.0, 6)
+
+    if "platform_budget_reservations" in tables:
+        cols = _table_columns(conn, "platform_budget_reservations")
+        if "settlement_json" in cols:
+            time_col = "updated_at" if "updated_at" in cols else ("created_at" if "created_at" in cols else None)
+            sql = "SELECT settlement_json FROM platform_budget_reservations WHERE settlement_json IS NOT NULL AND settlement_json != ''"
+            params: tuple[Any, ...] = ()
+            if time_col:
+                sql += f" AND {time_col} >= ?"
+                params = (cutoff_iso,)
+            bs = summary["budget_settlements"]
+            for row in conn.execute(sql, params).fetchall():
+                try:
+                    doc = json.loads(row["settlement_json"])
+                except (TypeError, ValueError):
+                    bs["unknown"]["rows"] += 1
+                    continue
+                if not isinstance(doc, Mapping):
+                    bs["unknown"]["rows"] += 1
+                    continue
+                basis = str(doc.get("cost_basis") or doc.get("basis") or "").lower()
+                raw_cost_units = doc.get("cost_units")
+                valid_cost_units = (
+                    float(raw_cost_units)
+                    if isinstance(raw_cost_units, (int, float)) and not isinstance(raw_cost_units, bool)
+                    else None
+                )
+                cash = next((v for v in (doc.get("cash_usd"), valid_cost_units if basis in {"payg", "cash", "cash_usd"} else None)
+                             if isinstance(v, (int, float)) and not isinstance(v, bool)), None)
+                list_p = next((v for v in (doc.get("list_price_usd"), doc.get("price_units"), doc.get("cost_usd"))
+                               if isinstance(v, (int, float)) and not isinstance(v, bool)), None)
+                cred = doc.get("credits") if doc.get("credits") is not None else doc.get("reported_credits")
+                actual_wins = doc.get("actual_windows") if isinstance(doc.get("actual_windows"), Mapping) else {}
+                has_quota_delta = any(isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0 for v in actual_wins.values())
+                tok_raw = doc.get("total_tokens")
+                if isinstance(tok_raw, (int, float)) and not isinstance(tok_raw, bool) and tok_raw > 0:
+                    tok_count = int(tok_raw)
+                elif isinstance(doc.get("tokens"), Mapping):
+                    tok_count = sum(int(v) for v in doc["tokens"].values()
+                                    if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0)
+                elif isinstance(doc.get("tokens"), (int, float)) and not isinstance(doc.get("tokens"), bool) and doc["tokens"] > 0:
+                    tok_count = int(doc["tokens"])
+                else:
+                    tok_count = 0
+                classified = False
+                if basis == "confirmed_zero":
+                    bs["confirmed_zero"]["rows"] += 1
+                    classified = True
+                elif cash is not None and (cash > 0 or basis in {"payg", "cash", "cash_usd"}):
+                    bs["cash_usd"]["rows"] += 1
+                    bs["cash_usd"]["amount"] = round(bs["cash_usd"]["amount"] + float(cash), 6)
+                    classified = True
+                elif basis == "provider_reported_cost" and valid_cost_units is not None and valid_cost_units > 0:
+                    bs["provider_reported_usd"]["rows"] += 1
+                    bs["provider_reported_usd"]["amount"] = round(
+                        bs["provider_reported_usd"]["amount"] + valid_cost_units, 6
+                    )
+                    classified = True
+                elif isinstance(cred, (int, float)) and not isinstance(cred, bool) and (cred > 0 or "credit" in basis):
+                    bs["credits"]["rows"] += 1
+                    bs["credits"]["amount"] = round(bs["credits"]["amount"] + float(cred), 6)
+                    classified = True
+                elif basis in {"subscription", "subscription_quota", "quota", "native"} or doc.get("billing_class") == "subscription" or has_quota_delta:
+                    bs["subscription_quota"]["rows"] += 1
+                    if tok_count > 0:
+                        bs["subscription_quota"]["tokens"] += tok_count
+                    classified = True
+                elif (list_p is not None and list_p > 0) or basis in {"list_price", "list_price_estimate"}:
+                    bs["list_price_usd"]["rows"] += 1
+                    bs["list_price_usd"]["amount"] = round(bs["list_price_usd"]["amount"] + float(list_p or 0.0), 6)
+                    classified = True
+                if not classified:
+                    bs["unknown"]["rows"] += 1
+    return summary
+
+
 def run_health_audit(
     db_path: Path | str,
     *,
@@ -541,6 +669,7 @@ def run_health_audit(
             _check_waiting_receipt_rate(conn, tables, cutoff_24h),
             _check_stalled_or_repeating_tasks(conn, tables, cutoff_iso),
         ]
+        settlement_breakdown = _settlement_basis_breakdown(conn, tables, cutoff_iso)
     finally:
         conn.close()
 
@@ -557,6 +686,7 @@ def run_health_audit(
         "lookback_days": lookback_days,
         "overall_status": overall,
         "invariants": invariants,
+        "settlement_basis_breakdown": settlement_breakdown,
     }
 
 

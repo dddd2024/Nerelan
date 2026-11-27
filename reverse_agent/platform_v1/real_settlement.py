@@ -21,6 +21,7 @@ _logger = logging.getLogger(__name__)
 
 # Pre-dispatch refusals / setup blocks where no executor ever ran a model call.
 PRE_DISPATCH_ZERO_CLASSES = frozenset({
+    "pre_validation_failed",
     "review_not_independent",
     "no_runnable_model",
     "pinned_model_unavailable",

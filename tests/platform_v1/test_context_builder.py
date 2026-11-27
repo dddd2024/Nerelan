@@ -380,3 +380,37 @@ def test_context_packet_caps_executor_progress_to_latest_five(tmp_path, repo):
     assert [e["description"] for e in progress_events] == [f"step-{i:02d}" for i in range(15, 20)]
     assert [e["type"] for e in first_events if e["type"] != "EXECUTOR_PROGRESS"] == ["VALIDATED", "EXECUTOR_COMPLETED"]
     store._conn.close()
+
+
+def test_feedback_compression_dedupes_lines_and_reports_saved_bytes():
+    from reverse_agent.platform_v1.context_builder import _compress_feedback_text, build_feedback_section
+
+    repeated = "\n".join(["WARNING: retrying transient stream chunk"] * 40 + ["E   AssertionError: expected 2 == 3"])
+    comp, stats = _compress_feedback_text(repeated, max_chars=400)
+    assert "... (" in comp
+    assert "AssertionError: expected 2 == 3" in comp
+    assert stats["saved_bytes"] > 0 and stats["compressed_bytes"] < stats["raw_bytes"]
+
+    section, sec_stats = build_feedback_section(
+        {"review_task_id": "r1", "findings": [{"path": "a.py", "line": 1, "severity": "high", "message": "x " * 1500}]},
+        {"feedback": repeated},
+        max_chars=500,
+    )
+    assert "Verified review feedback" in section and "Contract fixup feedback" in section
+    assert sec_stats["saved_bytes"] > 0
+
+    # 8 findings over budget must remain valid JSON, prioritize critical/high, and never drop silently.
+    findings_8 = [
+        {"path": "crit.py", "line": 1, "severity": "high", "message": "high-1 " + ("a " * 60)},
+        {"path": "crit2.py", "line": 2, "severity": "high", "message": "high-2 " + ("b " * 60)},
+        *[
+            {"path": f"low_{i}.py", "line": i + 10, "severity": "low", "message": f"verbose advisory {i} " + ("detail " * 80)}
+            for i in range(6)
+        ],
+    ]
+    sec8, _ = build_feedback_section({"review_task_id": "r8", "findings": findings_8}, None, max_chars=900)
+    payload_str = sec8.split("Verified review feedback (data):\n", 1)[1]
+    parsed = json.loads(payload_str)
+    kept_paths = {f["path"] for f in parsed["findings"]}
+    assert {"crit.py", "crit2.py"}.issubset(kept_paths)
+    assert len(parsed["findings"]) + parsed.get("omitted_findings", 0) == 8

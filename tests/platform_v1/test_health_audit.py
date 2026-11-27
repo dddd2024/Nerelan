@@ -345,3 +345,117 @@ def test_closed_issue_refs_prevent_cross_repository_collision(tmp_path: Path) ->
     inv = _by_id(report_a)["goal_hygiene"]
     assert inv["status"] == "ALERT"
     assert inv["metric"]["closed_issue_active_goals"] == 1
+
+
+def test_probe_zero_samples_is_unknown_and_settlement_basis_breakdown(tmp_path: Path) -> None:
+    db = tmp_path / "tasks.sqlite3"
+    conn = _init_db(db)
+    conn.execute("ALTER TABLE task_usage_observations ADD COLUMN status TEXT")
+    conn.execute("ALTER TABLE task_usage_observations ADD COLUMN source_kind TEXT")
+    conn.execute(
+        """
+        CREATE TABLE platform_budget_reservations (
+            id TEXT PRIMARY KEY, settlement_json TEXT, updated_at TEXT
+        )
+        """
+    )
+    conn.execute(
+        "INSERT INTO task_usage_observations VALUES ('u1', 't1', 'p1', 'm1', 100, 0, 0, 120000, ?, 'OBSERVED', 'step_finish')",
+        (RECENT,),
+    )
+    conn.execute(
+        "INSERT INTO task_usage_observations VALUES ('u2', 't2', 'p2', 'm2', 200, 0, 0, 250000, ?, 'OBSERVED', 'magpie_measured')",
+        (RECENT,),
+    )
+    conn.execute(
+        "INSERT INTO task_usage_observations VALUES ('u3', 't3', 'p3', 'm3', 50, 0, 0, 0, ?, 'OBSERVED', 'step_finish')",
+        (RECENT,),
+    )
+    conn.execute(
+        "INSERT INTO platform_budget_reservations VALUES ('b1', ?, ?)",
+        (json.dumps({"basis": "payg", "cash_usd": 0.42}), RECENT),
+    )
+    conn.execute(
+        "INSERT INTO platform_budget_reservations VALUES ('b2', ?, ?)",
+        (json.dumps({"basis": "credits", "reported_credits": 15.5}), RECENT),
+    )
+    conn.execute(
+        "INSERT INTO platform_budget_reservations VALUES ('b3', ?, ?)",
+        (json.dumps({"basis": "subscription", "billing_class": "subscription", "total_tokens": 2500}), RECENT),
+    )
+    conn.execute(
+        "INSERT INTO platform_budget_reservations VALUES ('b4', ?, ?)",
+        (json.dumps({
+            "state": "UNKNOWN",
+            "cost_basis": "list_price_estimate",
+            "cost_units": None,
+            "price_units": 0.063574,
+            "actual_windows": {"five_hour": None, "weekly": None},
+            "tokens": {"input": 28686, "cache_read": 12416, "cache_write": None, "output": 496, "reasoning": None},
+        }), RECENT),
+    )
+    conn.execute(
+        "INSERT INTO platform_budget_reservations VALUES ('b5', ?, ?)",
+        (json.dumps({
+            "state": "UNKNOWN",
+            "cost_basis": "unknown",
+            "cost_units": None,
+            "price_units": None,
+            "actual_windows": {"five_hour": None},
+            "tokens": {"input": None},
+        }), RECENT),
+    )
+    conn.execute(
+        "INSERT INTO platform_budget_reservations VALUES ('b6', ?, ?)",
+        (json.dumps({
+            "state": "UNKNOWN",
+            "cost_basis": "provider_reported_cost",
+            "cost_units": 0.42,
+            "price_units": 0.30,
+            "actual_windows": {"five_hour": None, "weekly": None},
+            "tokens": {"input": 1000, "cache_read": None, "cache_write": None, "output": 200, "reasoning": None},
+        }), RECENT),
+    )
+    conn.execute(
+        "INSERT INTO platform_budget_reservations VALUES ('b7', ?, ?)",
+        (json.dumps({
+            "state": "UNKNOWN",
+            "cost_basis": "confirmed_zero",
+            "cost_units": 0.0,
+            "price_units": 0.0,
+            "actual_windows": {},
+            "tokens": {"input": 0, "cache_read": 0, "cache_write": 0, "output": 0, "reasoning": 0},
+        }), RECENT),
+    )
+    conn.commit()
+    conn.close()
+
+    csv_no_probes = tmp_path / "magpie_no_probes.csv"
+    csv_no_probes.write_text(
+        "\n".join([
+            "time,agent,status,error,rejected,cost_usd",
+            "2026-11-25T10:03:00-04:00,opencode,200,,false,1.25",
+        ]),
+        encoding="utf-8",
+    )
+    report = run_health_audit(db, now=NOW, magpie_csv_path=csv_no_probes)
+    inv = _by_id(report)
+    # Zero probe rows must report UNKNOWN, never OK 0.0
+    assert inv["probe_error_rate"]["status"] == "UNKNOWN"
+    assert inv["probe_error_rate"]["metric"] is None
+
+    bs = report["settlement_basis_breakdown"]["budget_settlements"]
+    assert bs["cash_usd"] == {"rows": 1, "amount": 0.42}
+    assert bs["provider_reported_usd"] == {"rows": 1, "amount": 0.42}
+    assert bs["credits"] == {"rows": 1, "amount": 15.5}
+    assert bs["subscription_quota"] == {"rows": 1, "tokens": 2500}
+    assert bs["list_price_usd"] == {"rows": 1, "amount": 0.063574}
+    assert bs["confirmed_zero"] == {"rows": 1}
+    assert bs["unknown"] == {"rows": 1}
+
+    obs = report["settlement_basis_breakdown"]["usage_observations"]
+    assert obs["total"] == 3
+    assert obs["list_price_known_rows"] == 1 and obs["list_price_usd"] == 0.12
+    assert obs["provider_reported_known_rows"] == 1 and obs["provider_reported_usd"] == 0.25
+    assert obs["zero_cost_rows"] == 1
+    assert obs["unknown_rows"] == 0

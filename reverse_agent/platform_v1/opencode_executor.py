@@ -1237,13 +1237,17 @@ def _language_block() -> str:
 
 
 def build_prompt(task_title: str, worktree: str) -> str:
-    """Build the bounded authority envelope wrapping the user task."""
+    """Build the bounded authority envelope wrapping the user task.
+
+    Static authority and language rules lead the prompt so the KV cache prefix
+    remains reusable across different task worktrees.
+    """
     return (
         f"{_AUTHORITY_HEADER}\n"
         f"{_PROMPT_CONSTRAINTS}\n"
-        f"Worktree: {worktree}\n"
         f"{_AUTHORITY_FOOTER}\n"
         f"{_language_block()}"
+        f"Worktree: {worktree}\n"
         f"{_USER_TASK_HEADER}\n"
         f"{task_title}\n"
         f"{_USER_TASK_FOOTER}"
@@ -1279,9 +1283,9 @@ def build_role_prompt(
         f"ROLE AUTHORITY:\n"
         f"{instructions}\n"
         f"{_ROLE_END_STATE_DISCLAIMER}\n"
-        f"Worktree: {worktree}\n"
         f"{_AUTHORITY_FOOTER}\n"
         f"{_language_block()}"
+        f"Worktree: {worktree}\n"
         f"{_USER_TASK_HEADER}\n"
         f"{task_title}\n"
         f"{_USER_TASK_FOOTER}"

@@ -29,6 +29,44 @@ class CommandResult:
 CommandRunner = Callable[[Sequence[str], str], CommandResult]
 
 
+_ROUND_LIMIT_HEADING = "\n\n### Open Review Findings (Round Limit Reached)"
+
+
+def _round_limit_findings_markdown(store: Any, control_store: Any, goal_id: str) -> str:
+    """Format open review findings recorded at model_review_round_limit for Draft PR handoff."""
+    lines: list[str] = []
+    for link in control_store.list_goal_tasks(goal_id):
+        task_id = link.get("task_id")
+        if not task_id:
+            continue
+        task = store.get_task(task_id)
+        if task.status != "BLOCKED" or task.failure_classification != "model_review_round_limit":
+            continue
+        try:
+            detail = json.loads(task.failure_detail or "{}")
+        except (TypeError, ValueError):
+            continue
+        if detail.get("handoff_action") != "open_draft_pr":
+            continue
+        findings = detail.get("open_findings") or ()
+        omitted = int(detail.get("omitted_open_findings") or 0)
+        if not isinstance(findings, list) or (not findings and omitted <= 0):
+            continue
+        lines.append(_ROUND_LIMIT_HEADING)
+        for item in findings:
+            if isinstance(item, Mapping):
+                sev = str(item.get("severity") or "unknown").upper()
+                path = str(item.get("path") or "")
+                line = item.get("line")
+                loc = f"{path}:{line}" if path and line else path
+                msg = str(item.get("message") or "").strip()
+                lines.append(f"- [{sev}] {loc}: {msg}" if loc else f"- [{sev}] {msg}")
+        if omitted > 0:
+            lines.append(f"- ... (+{omitted} additional open findings omitted)")
+        break
+    return "\n".join(lines)
+
+
 class PublicationController:
     def __init__(
         self,
@@ -276,6 +314,7 @@ class PublicationController:
                 status=status, request_digest=request, commit_sha=artifact["commit"],
                 pr_number=int((pr or {}).get("number", 0)), pr_url=str((pr or {}).get("url", "")))
         body = "Retained functionally validated artifact. Independent review pending."
+        findings_md = _round_limit_findings_markdown(self.store, self.control_store, goal_id)
         from .goal_source_issue import source_issue
         from .quick_start import MAX_ISSUE_BODY_CHARS
         number = source_issue(goal)
@@ -298,16 +337,54 @@ class PublicationController:
             if r2 and not decisions:
                 raise TaskStoreError("r2_trusted_owner_decision_required")
             body += "\n" + "\n".join(decisions)
+        body += findings_md
         self._require_open_source(goal_id, fresh=True)
         save("PENDING")
         self._git(workspace, "push", "origin", artifact["commit"] + ":refs/heads/" + branch)
         save("PUSHED")
         pr = self._find_or_create_draft_pr(workspace=workspace, repository=goal.repository,
             branch=branch, base_branch=base_branch, title="Nerelan validated artifact",
-            body=body, before_create=lambda: self._require_open_source(goal_id, fresh=True))
+            body=body, before_create=lambda: self._require_open_source(goal_id, fresh=True),
+            sync_body=bool(findings_md))
         if not pr.get("isDraft") or pr.get("headRefOid") != artifact["commit"]:
             raise TaskStoreError("publication_pr_head_or_draft_mismatch")
         return save("COMPLETE", pr)
+
+    def sync_round_limit_body(self, task_id: str, *, goal_id: str) -> bool:
+        """Append or refresh round-limit findings on an already-published Draft PR."""
+        findings_md = _round_limit_findings_markdown(self.store, self.control_store, goal_id)
+        if not findings_md:
+            return False
+        record = self.control_store.get_publication(task_id)
+        if record is None or int(record.pr_number or 0) <= 0:
+            return False
+        goal = self.control_store.get_goal(goal_id)
+        try:
+            workspace_meta = self.control_store.durable_workspace(task_id) or {}
+        except TaskStoreError:
+            workspace_meta = {}
+        raw_ws = str(workspace_meta.get("worktree_path") or "").strip()
+        workspace = Path(raw_ws).resolve() if raw_ws else Path.cwd()
+        if not workspace.is_dir():
+            workspace = Path.cwd()
+        view = self._json(
+            self._gh(
+                workspace, "pr", "view", str(record.pr_number),
+                "--repo", goal.repository, "--json", "body,isDraft",
+            ).stdout
+        )
+        if not isinstance(view, Mapping) or not view.get("isDraft"):
+            return False
+        existing_body = str(view.get("body") or "")
+        base_body = existing_body.split(_ROUND_LIMIT_HEADING, 1)[0].rstrip()
+        updated_body = base_body + findings_md if base_body else findings_md.lstrip("\n")
+        if updated_body == existing_body:
+            return False
+        self._gh(
+            workspace, "pr", "edit", str(record.pr_number),
+            "--repo", goal.repository, "--body", updated_body,
+        )
+        return True
 
     def _find_or_create_draft_pr(
         self,
@@ -319,6 +396,7 @@ class PublicationController:
         title: str,
         body: str,
         before_create: Callable[[], None] | None = None,
+        sync_body: bool = False,
     ) -> Mapping[str, Any]:
         view_args = (
             "pr", "list", "--repo", repository, "--head", branch, "--state", "open",
@@ -327,6 +405,11 @@ class PublicationController:
         existing = self._json(self._gh(workspace, *view_args).stdout)
         if isinstance(existing, list) and existing:
             pr = existing[0]
+            if sync_body and bool(pr.get("isDraft", False)) and int(pr.get("number") or 0) > 0:
+                self._gh(
+                    workspace, "pr", "edit", str(pr["number"]),
+                    "--repo", repository, "--body", body,
+                )
         else:
             if before_create is not None:
                 before_create()
