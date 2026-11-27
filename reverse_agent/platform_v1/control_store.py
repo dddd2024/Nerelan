@@ -2995,14 +2995,16 @@ class PlatformControlStore:
                 unknown_count = tokens_unknown_count
                 if cost_enforced and not free_route:
                     unknown_count = max(unknown_count, cost_unknown_count)
-                if quota_usage_before is not None and not any(
+                missing_current_attempt_obs = quota_usage_before is not None and not any(
                         o["id"] not in quota_usage_before and o["claim_epoch"] == epoch
-                        and o["execution_id"] == task["execution_id"] for o in observations):
+                        and o["execution_id"] == task["execution_id"] for o in observations)
+                if missing_current_attempt_obs:
                     # A crash after saving but before usage persistence cannot attribute
                     # an earlier role's observations to the paused attempt.
                     unknown_count = max(1, unknown_count)
                 usage_unknown = bool(unknown_count)
-                has_partial = any(o["status"] == "PARTIAL" for o in observations)
+                partial_count = sum(1 for o in observations if o["status"] == "PARTIAL")
+                has_partial = partial_count > 0
                 host_zero = not observations and self._completed_host_checker(task_id)
                 if not observations and task["executor_kind"] != "deterministic_fixture" and not host_zero:
                     usage_unknown = True
@@ -3132,6 +3134,11 @@ class PlatformControlStore:
                     )
                     partial_cost = sum(int(observation["cost_micro_units"] or 0) for observation in observations)
                     if owner_charge:
+                        values[0] = max(int(reservation["reserved_token_units"]), partial_tokens)
+                        values[1] = max(int(reservation["reserved_cost_micro_units"]), partial_cost)
+                    elif unknown_count > partial_count or missing_current_attempt_obs:
+                        # Mixed PARTIAL + unmeasured UNKNOWN (or missing current attempt obs):
+                        # keep reservation floor conservative so UNKNOWN is never masked.
                         values[0] = max(int(reservation["reserved_token_units"]), partial_tokens)
                         values[1] = max(int(reservation["reserved_cost_micro_units"]), partial_cost)
                     else:

@@ -281,3 +281,36 @@ def test_health_audit_reads_magpie_cache_when_csv_absent(tmp_path: Path) -> None
     assert inv["probe_error_rate"]["metric"] == 0.5
     assert inv["supervision_to_worker_cost_ratio"]["status"] == "OK"
     assert inv["supervision_to_worker_cost_ratio"]["metric"] == 0.5
+
+
+def test_goal_source_issues_cached_closed_issues_is_read_only_and_ignores_expired() -> None:
+    import hashlib
+    from reverse_agent.platform_v1.control_store import GoalRecord
+    from reverse_agent.platform_v1.goal_source_issue import GoalSourceIssues
+
+    def _goal(repo: str, num: int) -> GoalRecord:
+        obj = f"Resolve https://github.com/{repo}/issues/{num}\n\n# Issue {num}"
+        dig = hashlib.sha256(obj.encode()).hexdigest()[:16]
+        return GoalRecord(
+            id=f"g-{num}", title=f"#{num}", objective=obj, repository=repo,
+            status="PLANNED", revision=1, spec_markdown="", plan_markdown="",
+            tasks=(), acceptance_criteria=(), artifact_digest="",
+            executor_kind="opencode", orchestration_mode="single",
+            binding_ref="", policy_ref="", window_id="",
+            idempotency_key=f"quick-start:{repo}:issue-{num}:{dig}:1",
+            created_at="2026-11-26T00:00:00Z", updated_at="2026-11-26T00:00:00Z",
+        )
+
+    states = {101: "CLOSED", 102: "OPEN", 103: "CLOSED"}
+    tracker = GoalSourceIssues(
+        lambda repo, num: {"number": num, "url": f"https://github.com/{repo}/issues/{num}", "state": states[num]}
+    )
+    assert tracker.closed(_goal("dddd2024/Nerelan", 101)) is True
+    assert tracker.closed(_goal("dddd2024/Nerelan", 102)) is False
+    assert tracker.closed(_goal("other/repo", 103)) is True
+    # Expire 103 manually and replace _reader to prove zero calls occur.
+    tracker._cache[("other/repo", 103)] = (0.0, True)
+    tracker._reader = lambda *_: (_ for _ in ()).throw(AssertionError("unexpected reader call"))
+    assert tracker.cached_closed_issues() == {101}
+    assert tracker.cached_closed_issues(repository="dddd2024/Nerelan") == {101}
+    assert tracker.cached_closed_issues(repository="other/repo") == set()

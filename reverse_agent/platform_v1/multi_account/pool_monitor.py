@@ -265,9 +265,21 @@ class PoolMonitor:
         with self._lock:
             stalled = self._stalled_seconds(runtime.get("coordinator") or {}, now)
             health_audit = self._refresh_health_audit(now)
+            audit_age = (
+                max(0.0, now - self._last_health_audit_at)
+                if health_audit is not None and self._last_health_audit_at is not None
+                else None
+            )
+            audit_stale = bool(
+                audit_age is not None
+                and self._health_audit_interval_seconds > 0
+                and audit_age > self._health_audit_interval_seconds * 2.0
+            )
             self._ledger.observe(evaluate_alerts(pool, runtime, self._config, now=now,
                                                  stalled_seconds=stalled,
-                                                 health_audit=health_audit), now=now)
+                                                 health_audit=health_audit,
+                                                 health_audit_stale=audit_stale,
+                                                 health_audit_age_seconds=audit_age), now=now)
             view = {
                 "observed_at": now,
                 "source": source,
@@ -279,6 +291,8 @@ class PoolMonitor:
                 "codex_reset": codex_reset,
                 "quota_resets": resets,
                 "health_audit": health_audit,
+                "health_audit_age_seconds": audit_age,
+                "health_audit_stale": audit_stale,
                 "alerts": {"active": self._ledger.active(), "recent": self._ledger.recent()},
                 "monitoring": self._thread is not None,
             }
@@ -295,7 +309,9 @@ class PoolMonitor:
             return self._last_health_audit
         if isinstance(report, Mapping):
             self._last_health_audit = dict(report)
-        self._last_health_audit_at = now
+            self._last_health_audit_at = now
+        elif self._last_health_audit is None:
+            self._last_health_audit_at = now
         return self._last_health_audit
 
     def view(self) -> dict[str, Any]:

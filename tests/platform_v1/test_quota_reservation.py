@@ -909,3 +909,37 @@ def test_token_budget_window_reconciles_unpriced_and_codex_partial_observations(
     w5 = control.get_window(cash_partial_win.id)
     assert (w5.status, w5.stop_reason) == ("BLOCKED", "usage_unknown")
     store._conn.close()
+
+
+def test_mixed_partial_and_unknown_in_non_owner_window_uses_reservation_floor(tmp_path):
+    from reverse_agent.platform_v1.autonomy import AutonomyService
+    from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from test_unattended_coordinator import _budget_window
+
+    store = TaskStore(tmp_path / "mixed.sqlite3")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    win = _budget_window(autonomy, policy_id="mixed-partial-unknown", max_tokens=20_000, reservation=5_000)
+    task = store.create_task(title="mixed-obs", executor_kind="opencode")
+    epoch, _ = control.claim_task(window_id=win.id, task_id=task.id, owner="o", lease_ms=60_000)
+    store.append_usage_observation(
+        task.id, observation_id="part-1", execution_id="e1", role="executor",
+        model_id="glm", provider_id="relay", source_kind="step_finish", source_id="s1",
+        status="PARTIAL", input_units=200, output_units=0, reasoning_units=0,
+        cache_read_units=0, cache_write_units=0, cost_micro_units=None,
+    )
+    store.append_usage_observation(
+        task.id, observation_id="unk-1", execution_id="e1", role="executor",
+        model_id="glm", provider_id="relay", source_kind="step_finish", source_id="s2",
+        status="UNKNOWN",
+    )
+    control.complete_task_claim(window_id=win.id, task_id=task.id, owner="o", epoch=epoch, result="terminal")
+    after = control.get_window(win.id)
+    assert after.status == "ACTIVE"
+    assert after.observed_token_units == 5_000
+    assert after.unknown_observation_count == 2
+    res = store._conn.execute("SELECT state, observed_token_units FROM platform_budget_reservations WHERE task_id=?", (task.id,)).fetchone()
+    assert (res["state"], res["observed_token_units"]) == ("UNKNOWN", None)
+    store._conn.close()

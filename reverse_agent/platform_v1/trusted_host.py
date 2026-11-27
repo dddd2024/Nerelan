@@ -369,8 +369,47 @@ class CombinedTrustedHost:
         if not path.is_file():
             return None
         try:
+            from . import magpie_usage_ingest
             from .health_audit import run_health_audit
-            return run_health_audit(path)
+
+            db_cache = path.parent / "magpie_usage_cache.jsonl"
+            if db_cache.is_file() or not os.environ.get("REVERSE_AGENT_RUNTIME_DIR"):
+                cache_path = db_cache
+            else:
+                cache_path = magpie_usage_ingest.default_cache_path()
+
+            exe = magpie_usage_ingest.magpie_executable()
+            if exe is None:
+                try:
+                    settings = self._store.get_magpie()
+                except Exception:  # noqa: BLE001
+                    settings = {}
+                raw_exe = str(settings.get("executable") or "").strip() if settings.get("enabled") else ""
+                if raw_exe:
+                    candidate = Path(raw_exe)
+                    if candidate.is_absolute() and candidate.is_file():
+                        exe = candidate
+            if exe is not None:
+                try:
+                    rows = magpie_usage_ingest.read_usage(exe)
+                    if rows:
+                        magpie_usage_ingest.merge_into_cache(rows, path=cache_path)
+                except Exception:  # noqa: BLE001 - best-effort read-only Magpie usage refresh
+                    pass
+
+            closed_issues: set[int] | None = None
+            source_issues = getattr(getattr(self, "_goal_service", None), "source_issues", None)
+            getter = getattr(source_issues, "cached_closed_issues", None)
+            if callable(getter):
+                cached = getter()
+                if cached:
+                    closed_issues = set(cached)
+
+            return run_health_audit(
+                path,
+                magpie_cache_path=cache_path if cache_path.is_file() else None,
+                closed_issue_numbers=closed_issues,
+            )
         except Exception:  # noqa: BLE001 - audit failure must never interrupt pool monitoring
             return None
 

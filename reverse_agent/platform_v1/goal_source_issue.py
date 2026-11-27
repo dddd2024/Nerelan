@@ -77,3 +77,13 @@ class GoalSourceIssues:
             if len(self._cache) > _CACHE_LIMIT:
                 self._cache.popitem(last=False)
             return closed
+
+    def cached_closed_issues(self, *, repository: str | None = None) -> set[int]:
+        """Return unexpired cached closed issue numbers with zero network/subprocess calls."""
+        now = time.monotonic()
+        with self._lock:
+            return {
+                number
+                for (repo, number), (expires_at, is_closed) in self._cache.items()
+                if is_closed and now < expires_at and (repository is None or repo == repository)
+            }
