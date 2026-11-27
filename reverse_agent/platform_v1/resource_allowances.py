@@ -117,17 +117,24 @@ def read_allowances(snapshot: Mapping[str, Any] | None, *, now: float) -> dict[s
                 or (remaining is not None and remaining > ALLOWANCE_RESERVE_PERCENT)
             )
             if is_promo and has_promo_headroom and (promo_until is None or promo_until > now):
+                promo_models = [
+                    str(m).strip().lower()
+                    for m in (window.get("models") or ())
+                    if isinstance(m, str) and m.strip()
+                ]
                 promo_map = result.setdefault("promotions", {})
                 promo_entry = {
                     "provider": provider, "window": window["name"],
                     "remaining_percent": remaining, "free_until": promo_until,
-                    "models": [str(m).lower() for m in (window.get("models") or ()) if isinstance(m, str)],
+                    "models": promo_models,
                     "account_ref": account.get("account_ref"),
                 }
                 prev_promo = promo_map.get(provider)
                 if prev_promo is None or (promo_until is not None and (prev_promo.get("free_until") is None or promo_until < prev_promo["free_until"])):
                     promo_map[provider] = promo_entry
                 for promo_model in promo_entry["models"]:
+                    if promo_model == "*" or promo_model == f"{provider}/*":
+                        continue
                     target_key = promo_model if "/" in promo_model else f"{provider}/{promo_model}"
                     result["models"].setdefault(target_key, {
                         "provider": provider, "window": window["name"],
@@ -201,7 +208,18 @@ def effective_cost(binding: Mapping[str, Any], connection: Mapping[str, Any], ow
     if daily and cost_class in {"free", "subscription"}:
         resources["daily_pool"] = {key: daily.get(key) for key in ("window", "remaining_percent", "resets_at", "limit")}
     promo = (allowances.get("promotions") or {}).get(provider)
-    if promo and (not promo.get("models") or model_id.lower() in promo["models"] or model_id.split("/", 1)[1].lower() in promo["models"]):
+    promo_models = promo.get("models") if isinstance(promo, Mapping) else None
+    promo_matches = bool(
+        isinstance(promo_models, (list, tuple, set, frozenset))
+        and promo_models
+        and (
+            "*" in promo_models
+            or f"{provider}/*" in promo_models
+            or model_id.lower() in promo_models
+            or model_id.split("/", 1)[1].lower() in promo_models
+        )
+    )
+    if promo and promo_matches:
         free_until = promo.get("free_until")
         if free_until is None or free_until > now:
             resources["promotional_free"] = {key: promo.get(key) for key in ("window", "remaining_percent", "free_until")}

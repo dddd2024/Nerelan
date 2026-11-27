@@ -373,8 +373,47 @@ def test_shared_account_pool_rpm_tpm_observed_multipliers_and_promotional_free(t
     )
     assert c_class == "free" and "promotional_free" in res
     assert ra.urgency(res, now=ts) > 0.0
+    # Unlisted model on the same provider MUST stay subscription (never treated as provider-wide promo).
+    other_class, other_res = ra.effective_cost(
+        {"binding_id": "wb-sonnet", "model_id": "workbuddy/claude-sonnet-4-6", "connection_id": "magpie"},
+        {"connection_id": "magpie", "auth_method": "none", "base_url": "http://127.0.0.1:3425/v1"},
+        {},
+        allowances,
+        now=ts,
+    )
+    assert other_class == "subscription" and "promotional_free" not in other_res
+
+    # Promo without models scope also stays non-free; explicit ["*"] opts into provider-wide scope.
+    unscoped_acct = {
+        "provider": "workbuddy", "kind": "subscription", "plan": "Pro", "user": "u1", "readAt": now_dt.isoformat(),
+        "windows": [{"name": "Limited-time Free Promo", "used": 10, "remaining": 90, "resetsAt": promo_iso}],
+    }
+    unscoped_allow = ra.read_allowances({"status": "available", "accounts": parse_quotas({"object": "list", "data": [unscoped_acct]}, now_dt)}, now=ts)
+    u_class, u_res = ra.effective_cost(
+        {"binding_id": "wb-sonnet", "model_id": "workbuddy/claude-sonnet-4-6", "connection_id": "magpie"},
+        {"connection_id": "magpie", "auth_method": "none", "base_url": "http://127.0.0.1:3425/v1"},
+        {},
+        unscoped_allow,
+        now=ts,
+    )
+    assert u_class == "subscription" and "promotional_free" not in u_res
+
+    wildcard_acct = {
+        "provider": "workbuddy", "kind": "subscription", "plan": "Pro", "user": "u1", "readAt": now_dt.isoformat(),
+        "windows": [{"name": "Limited-time Free Promo", "used": 10, "remaining": 90, "resetsAt": promo_iso, "models": ["*"]}],
+    }
+    wildcard_allow = ra.read_allowances({"status": "available", "accounts": parse_quotas({"object": "list", "data": [wildcard_acct]}, now_dt)}, now=ts)
+    w_class, w_res = ra.effective_cost(
+        {"binding_id": "wb-sonnet", "model_id": "workbuddy/claude-sonnet-4-6", "connection_id": "magpie"},
+        {"connection_id": "magpie", "auth_method": "none", "base_url": "http://127.0.0.1:3425/v1"},
+        {},
+        wildcard_allow,
+        now=ts,
+    )
+    assert w_class == "free" and "promotional_free" in w_res
 
     # End-to-end real magpie_usage_ingest rows (vendor provider="openai", nested tokens={...}) feed real _recent_pool_rates & _prepare_task_quota.
+    from reverse_agent.platform_v1 import magpie_usage_ingest
     from reverse_agent.platform_v1.magpie_usage_ingest import merge_into_cache, parse_usage_csv
     cache_path = tmp_path / "magpie_usage_cache.jsonl"
     now_iso_recent = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -399,15 +438,52 @@ def test_shared_account_pool_rpm_tpm_observed_multipliers_and_promotional_free(t
     host._task_store = SimpleNamespace(_conn=raw_conn)
     import os
     old_cache = os.environ.get("REVERSE_AGENT_MAGPIE_CACHE")
+    old_exe = os.environ.get("REVERSE_AGENT_MAGPIE_EXE")
     os.environ["REVERSE_AGENT_MAGPIE_CACHE"] = str(cache_path)
+    os.environ.pop("REVERSE_AGENT_MAGPIE_EXE", None)
     try:
         rpm_map, tpm_map = host._recent_pool_rates(limits)
         assert rpm_map == {"wb-shared": 2} and tpm_map == {"wb-shared": 5500}
         with pytest.raises(TaskStoreError, match="QUOTA_WAIT:pool_rpm_limit:wb-shared:2/2"):
             host._prepare_task_quota(SimpleNamespace(id="t-rpm", binding_ref="wb-ai", executor_kind="opencode", status="QUEUED"))
+
+        # Fresh cache missing recent external rows triggers on-demand refresh via Magpie CLI when configured.
+        cache_path.unlink()
+        fake_exe = tmp_path / "magpie.exe"
+        fake_exe.write_text("stub", encoding="utf-8")
+        os.environ["REVERSE_AGENT_MAGPIE_EXE"] = str(fake_exe)
+        orig_read_usage = magpie_usage_ingest.read_usage
+        refresh_calls: list[str] = []
+
+        def _fake_read_usage(_exe, *, last="6h", timeout=25.0):
+            refresh_calls.append(last)
+            return csv_rows[:1]  # 1 request (3000 tokens)
+
+        magpie_usage_ingest.read_usage = _fake_read_usage
+        try:
+            refreshed_rpm, refreshed_tpm = host._recent_pool_rates(limits)
+            assert refreshed_rpm == {"wb-shared": 1} and refreshed_tpm == {"wb-shared": 3000}
+            assert len(refresh_calls) == 1
+        finally:
+            magpie_usage_ingest.read_usage = orig_read_usage
+            os.environ.pop("REVERSE_AGENT_MAGPIE_EXE", None)
+
+        # Even without Magpie CLI or cache rows, sequential live admissions track RPM locally.
+        live_host = CombinedTrustedHost.__new__(CombinedTrustedHost)
+        live_host._store = host._store
+        live_host._task_store = SimpleNamespace(_conn=raw_conn)
+        cache_path.unlink(missing_ok=True)
+        live_host._prepare_task_quota(SimpleNamespace(id="t-l1", binding_ref="wb-ai", executor_kind="opencode", status="QUEUED"))
+        live_host._prepare_task_quota(SimpleNamespace(id="t-l2", binding_ref="wb-ai", executor_kind="opencode", status="QUEUED"))
+        with pytest.raises(TaskStoreError, match="QUOTA_WAIT:pool_rpm_limit:wb-shared:2/2"):
+            live_host._prepare_task_quota(SimpleNamespace(id="t-l3", binding_ref="wb-ai", executor_kind="opencode", status="QUEUED"))
     finally:
         if old_cache is None:
             os.environ.pop("REVERSE_AGENT_MAGPIE_CACHE", None)
         else:
             os.environ["REVERSE_AGENT_MAGPIE_CACHE"] = old_cache
+        if old_exe is None:
+            os.environ.pop("REVERSE_AGENT_MAGPIE_EXE", None)
+        else:
+            os.environ["REVERSE_AGENT_MAGPIE_EXE"] = old_exe
     raw_conn.close()
