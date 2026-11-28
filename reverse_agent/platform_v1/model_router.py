@@ -345,7 +345,8 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                  in_flight_by_upstream: Mapping[str, int] | None = None,
                  pool_limits: Mapping[str, Mapping[str, Any]] | None = None,
                  rpm_by_pool: Mapping[str, int] | None = None,
-                 tpm_by_pool: Mapping[str, int] | None = None) -> dict[str, Any]:
+                 tpm_by_pool: Mapping[str, int] | None = None,
+                 quota_held_binding: str = "") -> dict[str, Any]:
     """Pick from public binding metadata and precomputed quota observations.
 
     Scores prefer known availability/readiness, then quota, cost, success and speed.
@@ -387,6 +388,8 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         c.get("executor_id") == "codex" and isinstance(c.get("model_id"), str)
         and identity(c["model_id"]) in authors for c in candidates))
     excluded_tiers: dict[str, int] = {}
+    held_identity = next((identity(c["model_id"]) for c in candidates
+                          if c["binding_id"] == quota_held_binding), "")
     for candidate in candidates:
         if candidate.get("dispatch_block"):
             # A paid subscription behind a gateway (#1743): above every pin and preference.
@@ -416,6 +419,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         refusal = metadata.get("refusal_rates", {}).get(content)
         refusal_risk = .25 if refusal is None else max(0., min(1., refusal))
         quota = candidate.get("quota") or {}
+        admission = candidate.get("quota_admission") or {}
         from .routing_capabilities import tier_detail
         detail = tier_detail(capability_model, profile, kind, difficulty, capability_table, override)
         tier, unproven, tier_source = detail["tier"], detail["unproven"], detail["source"]
@@ -472,6 +476,11 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
               or content in override.get("denied_content", ())
               or ("allowed_content" in override and content not in override["allowed_content"])):
             reason = "owner_override"
+        elif quota_held_binding and (candidate["binding_id"] == quota_held_binding
+                                     or held_identity and held_identity == identity(candidate["model_id"])):
+            reason = "quota_held_model"
+        elif quota_held_binding and tier < difficulty:
+            reason = "below_task_capability"
         elif window * .7 < context_need:
             reason = "context_window"
         elif ("vision" in needs and "image" not in metadata.get("input_modalities", ())
@@ -485,9 +494,12 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             reason = "availability:no_credits"
         elif quota.get("reason") == "account_quarantined":
             reason = "account_quarantined"
-        elif quota.get("reason") in CONFIRMED_EXHAUSTION_REASONS | {"predicted_insufficient", "quota_capacity"}:
+        elif (quota.get("reason") in CONFIRMED_EXHAUSTION_REASONS | {"quota_capacity"}
+              or (not admission and quota.get("reason") == "predicted_insufficient")):
             reason = "quota_exhausted"
-        elif (candidate.get("cost_class") == "subscription"
+        elif quota_held_binding and admission.get("decision") == "quota_wait":
+            reason = "quota_capacity"
+        elif (not admission and candidate.get("cost_class") == "subscription"
               # An announced Codex reset drains to reset_buffer instead (Owner rule, #1248/#1281).
               and not (candidate["executor_id"] == "codex" and reset["drain"]) and any(
                 candidate.get(need) is not None and candidate.get(headroom) is not None
@@ -556,12 +568,15 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             elif reason == "quota_exhausted":
                 from .quota_guard import parse_time
                 exclusion["retry_at"] = parse_time(quota.get("until"))
+            elif reason == "quota_capacity" and admission:
+                exclusion["quota_admission"] = admission
             elif reason in {"pool_concurrency_limit", "pool_rpm_limit", "pool_tpm_limit"}:
                 exclusion["retry_at"] = float(now + 30.0)
             excluded.append(exclusion)
             excluded_tiers[candidate["binding_id"]] = tier
             continue
-        quota_penalty = int(quota.get("decision") in {"switch", "warn"})
+        quota_penalty = (int(admission["decision"] == "quota_wait") if admission
+                         else int(quota.get("decision") in {"switch", "warn"}))
         if (candidate["executor_id"] == "codex" and reset["drain"]
                 and quota.get("window") in {"weekly", "7d", "week"}):
             quota_penalty = 0  # announced draining replaces the weekly pacing reserve
@@ -663,6 +678,19 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                                     excluded=excluded, refusals=refused_models, pin=pin)
         error.decision["reset"] = reset_decision(reset_signal, now=now, buffer=reset_buffer, demand=False)
         raise error
+    has_held_qualifying = any(c["tier"] >= difficulty and (c.get("quota_admission") or {}).get("decision") == "quota_wait"
+                             for c in ranked)
+    if any(c["tier"] >= difficulty and c["liveness_rank"] == LIVENESS_CLEAN
+           and (c.get("quota_admission") or {}).get("decision") != "quota_wait" for c in ranked):
+        # Keep an explicit pin. An unpinned task can queue on its qualified held
+        # binding when every qualifying option is held, and dispatch checks again.
+        for candidate in tuple(ranked):
+            admission = candidate.get("quota_admission") or {}
+            if candidate["binding_id"] != pin and admission.get("decision") == "quota_wait":
+                ranked.remove(candidate)
+                excluded.append({"binding_id": candidate["binding_id"], "model_id": candidate["model_id"],
+                                 "filter": "quota_capacity", "quota_admission": admission})
+                excluded_tiers[candidate["binding_id"]] = candidate["tier"]
     liveness_fallback = False
     if stall_tier or any(c["liveness_rank"] for c in ranked):
         # Tier rules first: liveness only orders candidates at or above the floor (the
@@ -705,7 +733,8 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         raise ModelSelectionError("review_not_independent" if artifact_review else "pinned_model_unavailable", excluded=excluded, pin=pin)
     # Review fitness is a hard boundary before retry preferences. A weaker
     # different model must not displace the only qualifying independent model.
-    pool = [c for c in ranked if c["tier"] >= difficulty] if artifact_review else ranked
+    strict_floor = artifact_review or (has_held_qualifying and not pinned and not failed_model and not refused_models)
+    pool = [c for c in ranked if c["tier"] >= difficulty] if strict_floor else ranked
     if not pool:
         raise ModelSelectionError("review_not_independent", excluded=excluded)
     if refused_models:
@@ -817,6 +846,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             "score_breakdown": chosen["score_breakdown"], "context_window": chosen["context_window"],
             "tier_source": chosen["tier_source"], "tier_basis": chosen["tier_basis"], "reset_observations": reset_observations,
             "characteristics": chosen["characteristics"],
+            **({"quota_admission": chosen["quota_admission"]} if chosen.get("quota_admission") else {}),
             **({"downgrade_fallback": True} if downgrade_fallback else {}),
             **({"liveness": {"avoided_bindings": list(avoid_bindings), "avoided_upstreams": sorted(avoid_upstreams),
                              "rank": chosen["liveness_rank"], "fallback": liveness_fallback,

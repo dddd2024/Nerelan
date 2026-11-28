@@ -1,4 +1,4 @@
-"""A quota-held task moves to an equal-or-higher-tier model instead of waiting (#1313 D)."""
+"""A quota-held task can move to another dispatchable binding at its task floor."""
 import json
 
 import pytest
@@ -20,8 +20,8 @@ def _hold(store, control, task_id, *, binding="codex-bind", tier=4):
 
 
 def _resolver(choice, calls):
-    def resolve(plan_task, *, goal, failed_binding="", failed_tier=None, **kwargs):
-        calls.append((plan_task.id, failed_binding, failed_tier))
+    def resolve(plan_task, *, goal, quota_held_binding="", **kwargs):
+        calls.append((plan_task.id, quota_held_binding, plan_task.difficulty, kwargs))
         if isinstance(choice, Exception):
             raise choice
         return dict(choice)
@@ -32,20 +32,21 @@ ALTERNATIVE = {"binding_ref": "kimi-bind", "executor_kind": "opencode", "model_i
                "reason": "retry_different_model", "context_window": 256000}
 
 
-def test_held_task_moves_to_an_equal_tier_model_once(monkeypatch):
-    store, control, goals, goal = _launched(monkeypatch)
+def test_held_task_moves_once_to_a_model_meeting_the_task_floor(monkeypatch):
+    store, control, goals, goal = _launched(monkeypatch, role="coder")
     task_id = _link(control, goal.id, "T001")["task_id"]
-    _hold(store, control, task_id)
+    _hold(store, control, task_id, tier=5)
     calls = []
     goals.task_resolver = _resolver(ALTERNATIVE, calls)
     [moved] = goals.escalate_failed_tasks(goal.id)
     assert moved["reason"] == "quota_hold_reroute" and moved["to_binding"] == "kimi-bind"
-    assert calls == [("T001", "codex-bind", 4)]  # the held model and its tier are the floor
+    assert calls == [("T001", "codex-bind", 3, {"probe_availability": False})]
     task = store.get_task(task_id)
     assert (task.binding_ref, task.executor_kind, task.status) == ("kimi-bind", "opencode", "QUEUED")
     assert control.quota_hold(task_id) is None  # stale admission for the old binding is gone
     latest = [e for e in store.get_events(task_id) if e.type == "MODEL_SELECTED"][-1]
     assert latest.metadata["binding_ref"] == "kimi-bind" and latest.metadata["reroute_reason"] == "quota_hold"
+    assert (latest.metadata["held_tier"], latest.metadata["required_tier"]) == (5, 3)
     assert control.list_task_escalations(goal.id) == ()  # not a retry: no budget spent
     # A second hold on the new model never flips the task back.
     _hold(store, control, task_id, binding="kimi-bind", tier=4)
@@ -54,18 +55,59 @@ def test_held_task_moves_to_an_equal_tier_model_once(monkeypatch):
 
 @pytest.mark.parametrize("choice", [
     dict(ALTERNATIVE, binding_ref="codex-bind"),                                 # only the held model
-    dict(ALTERNATIVE, tier=3),                                                    # a downgrade
-    dict(ALTERNATIVE, tier=3, downgrade_fallback=True, reason="retry_lower_tier_fallback"),
+    dict(ALTERNATIVE, tier=2),                                                    # below the task floor
+    dict(ALTERNATIVE, liveness={"fallback": True}),
     TaskStoreError("no_runnable_model"),
 ])
-def test_held_task_keeps_waiting_without_an_equal_or_higher_alternative(monkeypatch, choice):
-    store, control, goals, goal = _launched(monkeypatch)
+def test_held_task_waits_without_a_qualifying_alternative(monkeypatch, choice):
+    store, control, goals, goal = _launched(monkeypatch, role="coder")
     task_id = _link(control, goal.id, "T001")["task_id"]
     _hold(store, control, task_id)
     goals.task_resolver = _resolver(choice, [])
     assert goals.escalate_failed_tasks(goal.id) == ()
     assert store.get_task(task_id).binding_ref == "codex-bind"
     assert control.quota_hold(task_id) is not None
+
+
+def test_replay_1805_aligns_task_traits_claim_and_quota_reroute(monkeypatch, tmp_path):
+    from test_model_router import fixture_host
+
+    checks = [{"profile_id": "python_pytest", "working_directory": ".", "targets": ["tests/test_x.py"]}]
+    store, control, goals, created = _launched(monkeypatch, role="coder", checks=checks,
+        roster={"coder": ("claude_code", "strong"), "simple": ("opencode", "cheap")})
+    goal = control.get_goal(created.id)
+    host = fixture_host(monkeypatch, tmp_path)
+    host._task_store, host._control_store = store, control
+    goals.task_resolver = host._resolve_task_model
+    task = store.get_task(_link(control, goal.id, "T001")["task_id"])
+    planned = goals._normalize_task(goal.tasks[0], seq=0)
+
+    # #1805 used a tier-5 native route for a tier-3 task, then reached claim
+    # with both quota windows unknown. Rebuild that state without provider calls.
+    first = host._resolve_task_model(planned, goal=goal, probe_availability=False)
+    assert first["binding_ref"] == task.binding_ref == "strong"
+    assert (first["difficulty"], first["tier"]) == (3, 5)
+    goals._record_model_selection(task, first)
+    host._prepare_task_quota(task)
+    estimate = store._conn.execute("SELECT need_json FROM platform_quota_admissions WHERE task_id=?", (task.id,)).fetchone()
+    assert json.loads(estimate[0])["estimate"]["difficulty"] == "3"
+    with pytest.raises(TaskStoreError, match="QUOTA_WAIT:unknown_reset"):
+        control.claim_task(window_id=goal.window_id, task_id=task.id, owner="fixture", lease_ms=60_000)
+    hold = control.quota_hold(task.id)
+    assert hold == first["quota_admission"]
+    assert hold["state"] == "UNKNOWN" and hold["blocking_windows"] == ["five_hour", "weekly"]
+    assert not goals.reroute_quota_held(goal.id)  # existing weaker routes cannot satisfy the task
+
+    host._store.upsert_binding({"binding_id": "mid", "name": "Alternative", "executor_id": "opencode",
+        "connection_id": "free-api", "model_id": "kimi-k3", "enabled": True})
+    assert host._resolve_task_model(planned, goal=goal, probe_availability=False)["binding_ref"] == "mid"
+    [moved] = goals.reroute_quota_held(goal.id)
+    assert moved["task_id"] == task.id and moved["to_binding"] == "mid"
+    assert store.get_task(task.id).status == "QUEUED"
+    assert control.quota_hold(task.id) is None
+    with pytest.raises(TaskStoreError, match="quota_reservation_identity_changed"):
+        host._prepare_task_quota(task)  # delayed preparation of the previous binding
+    assert not control.quota_reservations()
 
 
 def test_started_or_unheld_or_unselected_tasks_are_never_moved(monkeypatch):
@@ -77,7 +119,7 @@ def test_started_or_unheld_or_unselected_tasks_are_never_moved(monkeypatch):
     _hold(store, control, task_id)
     store._conn.execute("DELETE FROM task_events WHERE task_id=? AND type='MODEL_SELECTED'", (task_id,))
     store._conn.commit()
-    assert goals.escalate_failed_tasks(goal.id) == () and calls == []  # no recorded tier: no floor
+    assert goals.escalate_failed_tasks(goal.id) == () and calls == []  # no recorded selection
     _hold(store, control, task_id)
     store._conn.execute("INSERT INTO durable_runs (run_id, task_id, execution_id, worktree_path, lease_epoch, "
                         "lease_expiry_ms, created_at, updated_at) VALUES ('run-x', ?, 'e', 'w', 1, 1, 'x', 'x')",
