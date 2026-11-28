@@ -194,7 +194,7 @@ def test_native_endpoint_lease_is_bound_and_keyless_probe_is_confined(monkeypatc
         manager._validate_lease_for_request(lease.lease_id, method='POST', path='/chat/completions', model='gpt-4o')
     active = manager._validate_lease_for_request(lease.lease_id, method='POST', path='/responses', model='gpt-4o')
     calls = []
-    monkeypatch.setattr(relay, '_http_roundtrip', lambda url, *args: calls.append((url, args)) or (200, b'{}', {}))
+    monkeypatch.setattr(relay, '_http_roundtrip', lambda url, *args, **kwargs: calls.append((url, args)) or (200, b'{}', {}))
     relay.forward_to_upstream(active, body=b'{}')
     assert calls[-1][0].endswith('/responses')
     keyless = _make_snapshot(auth_method='none', resolved_api_key=None)
