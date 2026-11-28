@@ -739,6 +739,7 @@ class UnattendedCoordinator:
                     task_id=task_id,
                     owner=self.owner,
                     lease_ms=self.claim_lease_ms,
+                    expected_binding=task.binding_ref,
                     **({"feedback_identity": feedback_identity} if feedback_identity is not None else {}),
                 )
             except TaskStoreError as exc:
