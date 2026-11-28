@@ -396,7 +396,10 @@ def _urlopen_waiting_out_rate_limits(make_request: Any, timeout: float, *, activ
     for attempt in range(RATE_LIMIT_MAX_RETRIES + 1):
         elapsed = clock() - started
         # A retry answers inside the client's own deadline, never the full upstream timeout again.
-        attempt_timeout = timeout if attempt == 0 else max(1.0, min(timeout, CLIENT_HEADER_DEADLINE_SECONDS - elapsed))
+        # urllib's timeout is per socket operation; connect and the header read are the two
+        # blocking ones before headers, so each gets half of what is left.
+        left = (CLIENT_HEADER_DEADLINE_SECONDS - elapsed) / 2
+        attempt_timeout = timeout if attempt == 0 else max(min(timeout, 1.0), min(timeout, left))
         try:
             return urlopen(make_request(), timeout=attempt_timeout)  # noqa: S310 - gated relay
         except HTTPError as exc:
@@ -407,7 +410,7 @@ def _urlopen_waiting_out_rate_limits(make_request: Any, timeout: float, *, activ
             # Our own fallback schedule fits the remaining budget; an upstream's explicit ask is honoured or refused.
             wait = min(RATE_LIMIT_DEFAULT_WAIT_SECONDS * (attempt + 1), remaining) if asked is None else asked
             if (remaining < RATE_LIMIT_MIN_WAIT_SECONDS or wait > remaining
-                    or CLIENT_HEADER_DEADLINE_SECONDS - (clock() - started) - wait < RATE_LIMIT_MIN_WAIT_SECONDS
+                    or (CLIENT_HEADER_DEADLINE_SECONDS - (clock() - started) - wait) / 2 < RATE_LIMIT_MIN_WAIT_SECONDS
                     or _lease_gone(active)):
                 raise
             exc.close()

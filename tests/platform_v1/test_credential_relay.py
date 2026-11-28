@@ -990,4 +990,18 @@ def test_relay_fallback_waits_fit_the_budget_and_retries_get_the_remaining_deadl
     with pytest.raises(HTTPError):
         relay_module._urlopen_waiting_out_rate_limits(object, 120.0, sleep=sleep, clock=lambda: now[0])
     assert waits == [20.0, 38.0]  # 1 + 20 + 1 = 22 s spent, 38 s left of the 60 s budget
-    assert timeouts == [120.0, 94.0, 55.0]  # 115 s client deadline minus what was already spent
+    # Half of what is left of the 115 s client deadline: connect plus header read stay inside it.
+    assert timeouts == [120.0, 47.0, 27.5]
+
+
+def test_relay_never_raises_a_small_configured_timeout(monkeypatch):
+    from urllib.error import HTTPError
+    from reverse_agent.model_access import credential_relay as relay_module
+    timeouts = []
+    def refuse(request, timeout):
+        timeouts.append(timeout)
+        raise _rate_limited("0")
+    monkeypatch.setattr(relay_module, "urlopen", refuse)
+    with pytest.raises(HTTPError):
+        relay_module._urlopen_waiting_out_rate_limits(object, 0.5, sleep=lambda s: None)
+    assert timeouts == [0.5, 0.5, 0.5]
