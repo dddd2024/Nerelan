@@ -1017,3 +1017,14 @@ def durable_context_packet_blob(context: str) -> bytes:
         packet_line = context.split(_CONTEXT_PACKET_HEADER, 1)[1].split("\n", 1)[0]
         return packet_line.encode("utf-8")
     return context.rsplit("\n", 1)[-1].encode("utf-8")
+
+
+def durable_context_metadata(context: str, base_sha: str) -> dict[str, int | str]:
+    """Capture packet and rendered context byte sizes for every executor."""
+    packet = durable_context_packet_blob(context)
+    return {
+        "base_sha": base_sha,
+        "context_packet_digest": _sha256_bytes(packet),
+        "context_packet_bytes": len(packet),
+        "rendered_context_bytes": len(context.encode("utf-8")),
+    }
