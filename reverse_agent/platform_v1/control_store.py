@@ -2366,9 +2366,12 @@ class PlatformControlStore:
         return tuple(outcomes)
 
     def reroute_held_task(self, task_id: str, *, expected_binding: str, binding_ref: str,
-                          executor_kind: str, branch: str, selection: Mapping[str, Any]) -> bool:
-        """Move a never-started, quota-held QUEUED task to another binding (#1313 D).
+                          executor_kind: str, branch: str, selection: Mapping[str, Any],
+                          require_hold: bool = True) -> bool:
+        """Move a never-started QUEUED task to another binding (#1313 D).
 
+        By default only a quota-held task moves. ``require_hold=False`` is for a
+        review whose selected model has since become one of its authors.
         Compare-and-set on status and binding; the stale admission input is dropped so
         the next claim prepares quota evidence for the new binding.
         """
@@ -2377,7 +2380,7 @@ class PlatformControlStore:
             started = self._conn.execute(
                 "SELECT 1 FROM platform_coordinator_claims WHERE task_id=? UNION ALL "
                 "SELECT 1 FROM durable_runs WHERE task_id=? LIMIT 1", (task_id, task_id)).fetchone()
-            if started is not None or self.quota_hold(task_id) is None:
+            if started is not None or (require_hold and self.quota_hold(task_id) is None):
                 return False
             moved = self._conn.execute(
                 "UPDATE tasks SET binding_ref=?, executor_kind=?, branch=?, updated_at=? "
@@ -2388,7 +2391,8 @@ class PlatformControlStore:
             self._conn.execute("DELETE FROM platform_quota_admissions WHERE task_id=?", (task_id,))
             self.__dict__.get("_dispatch_holds", {}).pop(task_id, None)
             self.task_store._append_event(task_id=task_id, event_type="MODEL_SELECTED", title="Model selected",
-                description=f"{binding_ref}: quota_hold_reroute from {expected_binding}", metadata=selection)
+                description=f"{binding_ref}: {selection.get('reroute_reason') or 'quota_hold'}_reroute from {expected_binding}",
+                metadata=selection)
             return True
 
     @property
