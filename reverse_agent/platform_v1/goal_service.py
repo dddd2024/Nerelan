@@ -394,12 +394,10 @@ def _stranded_source(task: Any) -> bool:
 
 
 def _interrupted_dispatch(store: Any, failed: Any) -> bool:
-    """A dispatch refused only because an interrupted run left its call PENDING (#1473).
+    """Identify a refused dispatch after stale-lease recovery (#1473).
 
-    The refusal keeps a second executor out of the same worktree. A new task gets
-    its own worktree; the interrupted executor is gone (a live one in this process
-    is no longer reconciled away, and a restarted host's job object killed its
-    children), so moving the plan task on is safe.
+    A refusal alone does not settle the original operation. Replacement must also
+    pass the stranded-source check for live leases, claims and unresolved calls.
     """
     if (failed.status != "FAILED" or failed.failure_classification != "ambiguous_external_operation"
             or (failed.failure_detail or "") != REFUSED_SECOND_DISPATCH):
@@ -1580,7 +1578,7 @@ class GoalService:
         no replacement attempt is scheduled until the call is reconciled. If that
         event cannot be recorded, nothing new is scheduled either.
         """
-        if not _stranded_source(task):
+        if not (_stranded_source(task) or _interrupted_dispatch(self.store, task)):
             return False
         self._settle_abandoned_local_executions(task)
         with self.store._lock:
@@ -2518,7 +2516,7 @@ class GoalService:
         if link["status"] not in {"FAILED", "BLOCKED", "INTERRUPTED"}:
             raise TaskStoreError("owner_retry_step_not_stopped")
         failed = self.store.get_task(link["task_id"])
-        if _stranded_source(failed):
+        if _stranded_source(failed) or _interrupted_dispatch(self.store, failed):
             self._settle_abandoned_local_executions(failed)
             with self.store._lock:
                 refusal = _stranded_source_refusal(self.store._conn, failed.id)
@@ -2581,7 +2579,7 @@ class GoalService:
                         or source.status != failed.status
                         or self.control_store.get_goal(goal_id).revision != goal.revision):
                     raise TaskStoreError("owner_retry_step_not_stopped")
-                if _stranded_source(source):
+                if _stranded_source(source) or _interrupted_dispatch(self.store, source):
                     # Re-checked inside the write transaction: a resume or call that
                     # started while routing ran cannot be overtaken by the new attempt.
                     refusal = _stranded_source_refusal(self.store._conn, source.id)
