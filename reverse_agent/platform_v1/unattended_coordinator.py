@@ -126,6 +126,7 @@ class UnattendedCoordinator:
         goal_escalator: Any | None = None,
         quota_preparer: Any | None = None,
         quota_rerouter: Any | None = None,
+        dispatch_settler: Callable[[str, bool], None] | None = None,
         account_feedback: Any | None = None,
         idle_wait_hint: Any | None = None,
         quota_wait_target: str | None = None,
@@ -144,6 +145,9 @@ class UnattendedCoordinator:
         self.quota_preparer = quota_preparer
         # goal_id -> moves; quota-held tasks to an equal-or-higher-tier model (#1313 D).
         self.quota_rerouter = quota_rerouter
+        # (task_id, claimed) -> None; a prepared dispatch counts against shared-pool
+        # rates only when its claim committed (#1533).
+        self.dispatch_settler = dispatch_settler
         # (task, success) -> None; per-account feedback for the multi-account brain
         # (cooldown + measured reliability). Optional and best-effort.
         self.account_feedback = account_feedback
@@ -733,6 +737,7 @@ class UnattendedCoordinator:
                         input_payload={"task_id": task_id, "status": task.status},
                         record_receipt=True,
                     ):
+                        self._settle_dispatch(task_id, False)
                         continue
                 epoch, _ = self.control_store.claim_task(
                     window_id=window.id,
@@ -743,6 +748,7 @@ class UnattendedCoordinator:
                     **({"feedback_identity": feedback_identity} if feedback_identity is not None else {}),
                 )
             except TaskStoreError as exc:
+                self._settle_dispatch(task_id, False)
                 if str(exc) == "window_wip_limit_reached":
                     deferred_auth[task_id] = auth_key
                     break
@@ -782,6 +788,7 @@ class UnattendedCoordinator:
                 continue
             deferred_auth.pop(task_id, None)
             claimed[task_id] = epoch
+            self._settle_dispatch(task_id, True)
             if self._stop.is_set():
                 break
         self._disk_waiting = tuple(disk_waiting)
@@ -1125,6 +1132,14 @@ class UnattendedCoordinator:
             self.account_feedback(task, success)
         except Exception as exc:  # noqa: BLE001 - feedback must never break the loop
             self._last_error = f"account_feedback_failed:{type(exc).__name__}"
+
+    def _settle_dispatch(self, task_id: str, claimed: bool) -> None:
+        if self.dispatch_settler is None:
+            return
+        try:
+            self.dispatch_settler(task_id, claimed)
+        except Exception as exc:  # noqa: BLE001 - rate bookkeeping must never break the loop
+            self._last_error = f"dispatch_settle_failed:{type(exc).__name__}"
 
     def _reroute_held(self, task_ids: list[str]) -> None:
         if self.quota_rerouter is None:

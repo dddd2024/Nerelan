@@ -209,6 +209,8 @@ def test_claim_time_pool_capacity_blocks_concurrent_gateway_dispatch(tmp_path: P
     host._prepare_task_quota(task_store.get_task(t1.id))
     with pytest.raises(TaskStoreError, match="QUOTA_WAIT:pool_concurrency_limit:token-sensenova:1/1"):
         host._prepare_task_quota(task_store.get_task(t2.id))
+    # The refusal leaves a hold the quota rerouter reads, though no admission row exists (#1533).
+    assert control.quota_hold(t2.id)["reason"] == "pool_concurrency_limit"
 
     # Releasing t1's claim frees the physical pool slot for t2.
     control.complete_task_claim(window_id=win.id, task_id=t1.id, owner="o", epoch=epoch1, result="success")
@@ -473,8 +475,15 @@ def test_shared_account_pool_rpm_tpm_observed_multipliers_and_promotional_free(t
         live_host._store = host._store
         live_host._task_store = SimpleNamespace(_conn=raw_conn)
         cache_path.unlink(missing_ok=True)
+        # A preparation whose claim never commits uses none of the pool's rate window (#1533).
+        for attempt in range(3):
+            live_host._prepare_task_quota(SimpleNamespace(id="t-l0", binding_ref="wb-ai", executor_kind="opencode", status="QUEUED"))
+            live_host._settle_task_dispatch("t-l0", False)
+        assert live_host._recent_pool_rates(limits)[0] == {}
         live_host._prepare_task_quota(SimpleNamespace(id="t-l1", binding_ref="wb-ai", executor_kind="opencode", status="QUEUED"))
+        live_host._settle_task_dispatch("t-l1", True)
         live_host._prepare_task_quota(SimpleNamespace(id="t-l2", binding_ref="wb-ai", executor_kind="opencode", status="QUEUED"))
+        live_host._settle_task_dispatch("t-l2", True)
         with pytest.raises(TaskStoreError, match="QUOTA_WAIT:pool_rpm_limit:wb-shared:2/2"):
             live_host._prepare_task_quota(SimpleNamespace(id="t-l3", binding_ref="wb-ai", executor_kind="opencode", status="QUEUED"))
     finally:

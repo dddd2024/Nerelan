@@ -411,3 +411,61 @@ def test_a_route_fault_cools_the_pool_down_like_a_stall(classification):
     assert quota_guard.liveness_cooldown([_ok(NOW), fault], now=NOW) is None
     # Stall-specific retry rules keep their own, narrower set.
     assert classification not in quota_guard.LIVENESS_STALL_CLASSES
+
+
+# --- #1533: shared-pool refusals before claim feed the same reroute ----------------------
+
+def _pool_selected(store, task_id, *, binding="codex-bind", tier=4):
+    store._conn.execute("UPDATE tasks SET binding_ref=?, executor_kind='codex' WHERE id=?", (binding, task_id))
+    store._conn.commit()
+    store.add_event(task_id, event_type="MODEL_SELECTED", title="Model selected", description=binding,
+                    metadata={"binding_ref": binding, "tier": tier, "model_id": "gpt-6.1-sol", "reason": "cheapest"})
+
+
+def test_pool_concurrency_refusal_before_claim_lets_the_task_move(monkeypatch):
+    store, control, goals, goal = _launched(monkeypatch, role="coder")
+    task_id = _link(control, goal.id, "T001")["task_id"]
+    _pool_selected(store, task_id)
+    goals.task_resolver = _resolver(ALTERNATIVE, [])
+    assert control.quota_hold(task_id) is None and goals.escalate_failed_tasks(goal.id) == ()
+    control.note_dispatch_hold(task_id, binding_ref="codex-bind",
+        verdict={"decision": "quota_wait", "reason": "pool_concurrency_limit", "pool": "codex", "used": 1, "cap": 1})
+    assert control.quota_hold(task_id)["reason"] == "pool_concurrency_limit"
+    [moved] = goals.escalate_failed_tasks(goal.id)
+    assert moved["to_binding"] == "kimi-bind"
+    latest = [e for e in store.get_events(task_id) if e.type == "MODEL_SELECTED"][-1]
+    assert latest.metadata["hold"]["reason"] == "pool_concurrency_limit"
+    assert control.quota_hold(task_id) is None  # the hold named the old binding
+
+
+def test_pool_rate_hold_moves_only_after_lasting_its_window_and_expires(monkeypatch):
+    store, control, goals, goal = _launched(monkeypatch, role="coder")
+    task_id = _link(control, goal.id, "T001")["task_id"]
+    _pool_selected(store, task_id)
+    verdict = {"decision": "quota_wait", "reason": "pool_rpm_limit", "pool": "codex", "used": 2, "cap": 2}
+    control.note_dispatch_hold(task_id, binding_ref="codex-bind", verdict=verdict, now=1000.0)
+    control.note_dispatch_hold(task_id, binding_ref="codex-bind", verdict=verdict, now=1030.0)
+    with control._lock:
+        assert control._dispatch_hold_locked(task_id, now=1030.0) is None  # shorter than one rate window
+        assert control._dispatch_hold_locked(task_id, now=1061.0)["held_seconds"] == 61.0
+        assert control._dispatch_hold_locked(task_id, now=1151.0) is None  # not refused again for 120 s
+    # Another binding's refusal restarts the clock: it is a different pool.
+    control.note_dispatch_hold(task_id, binding_ref="other", verdict=verdict, now=1100.0)
+    with control._lock:
+        assert control._dispatch_hold_locked(task_id, now=1100.0) is None
+
+
+def test_host_pool_refusal_records_a_hold_and_counts_rate_only_after_claim(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+    from reverse_agent.platform_v1.unattended_coordinator import UnattendedCoordinator
+    store, control, goals, goal = _launched(monkeypatch)
+    task_id = _link(control, goal.id, "T001")["task_id"]
+    settled = []
+    def refuse(task):
+        raise TaskStoreError("QUOTA_WAIT:pool_concurrency_limit:kimi:1/1")
+    coordinator = UnattendedCoordinator(store=store, control_store=control,
+        autonomy=SimpleNamespace(authorize=lambda **kwargs: True), router=SimpleNamespace(),
+        workspace_root=tmp_path, quota_preparer=refuse, quota_rerouter=lambda goal_id: None,
+        dispatch_settler=lambda tid, claimed: settled.append((tid, claimed)))
+    assert coordinator.tick() == 0
+    assert settled == [(task_id, False)]
