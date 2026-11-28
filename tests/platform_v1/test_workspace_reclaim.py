@@ -443,9 +443,9 @@ def _reclaimer(root, db, mode="apply", **kw):
     return workspace_reclaim.AutoReclaimer(root, db, mode=mode, clock=lambda: LATER, **kw)
 
 
-def test_auto_config_is_off_by_default_and_rejects_bad_values():
+def test_auto_config_is_on_by_default_and_rejects_bad_values():
     assert workspace_reclaim.auto_config({}) == {
-        "mode": "off", "retention_days": 3.0, "interval_hours": 24.0, "poll_minutes": 15.0,
+        "mode": "apply", "retention_days": 3.0, "interval_hours": 24.0, "poll_minutes": 15.0,
         "preserve": False, "low_disk_gb": 10.0, "low_disk_retention_days": 1.0}
     config = workspace_reclaim.auto_config({
         "REVERSE_AGENT_WORKSPACE_RECLAIM": "delete-all",
@@ -461,9 +461,11 @@ def test_auto_config_is_off_by_default_and_rejects_bad_values():
     assert config["mode"] == "apply" and config["retention_days"] == 7.0
 
 
-def test_configured_reclaimer_needs_opt_in_and_a_file_store(root, tmp_path):
+def test_configured_reclaimer_can_be_disabled_and_needs_a_file_store(root, tmp_path):
     db = str(tmp_path / "tasks.sqlite3")
-    assert workspace_reclaim.configured_reclaimer(root, db, env={}) is None
+    assert workspace_reclaim.configured_reclaimer(root, db, env={}).apply is True
+    off = {"REVERSE_AGENT_WORKSPACE_RECLAIM": "off"}
+    assert workspace_reclaim.configured_reclaimer(root, db, env=off) is None
     on = {"REVERSE_AGENT_WORKSPACE_RECLAIM": "report"}
     assert workspace_reclaim.configured_reclaimer(root, ":memory:", env=on) is None
     reclaimer = workspace_reclaim.configured_reclaimer(root, db, env=on)
@@ -502,6 +504,34 @@ def test_finished_task_with_unsafe_work_is_kept(repo, root, tmp_path):
     assert records["task-dirty"]["reason"] == "uncommitted or untracked changes"
     assert records["task-unpushed"]["reason"] == "commits not on any remote branch"
     assert dirty.exists() and unpushed.exists()
+
+
+def _deny_listing(monkeypatch, name):
+    real = workspace_reclaim.os.scandir
+
+    def scandir(path):
+        if os.path.basename(str(path)) == name:
+            raise PermissionError(5, "Access is denied", str(path))
+        return real(path)
+
+    monkeypatch.setattr(workspace_reclaim.os, "scandir", scandir)
+
+
+def test_unlistable_cache_does_not_block_reclaim(repo, root, monkeypatch):
+    with (repo / ".git" / "info" / "exclude").open("a") as handle:
+        handle.write("__pycache__/\n")
+    wt = add_worktree(repo, root, "task-1")
+    (wt / "__pycache__").mkdir()
+    _deny_listing(monkeypatch, "__pycache__")
+    assert by_name(sweep([root], now=LATER))["task-1"]["reclaim"] is True
+
+
+def test_unlistable_work_directory_keeps_the_tree(repo, root, monkeypatch):
+    wt = add_worktree(repo, root, "task-1")
+    (wt / "results").mkdir()
+    _deny_listing(monkeypatch, "results")
+    entry = by_name(sweep([root], now=LATER, apply=True))["task-1"]
+    assert entry["reason"] == "tree unreadable" and wt.exists()
 
 
 def test_report_mode_never_deletes(repo, root, tmp_path):

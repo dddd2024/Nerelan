@@ -26,11 +26,11 @@ expire, and keep whatever was in the worktree; delete one with
 
 ## Automatic reclaim in the trusted host
 
-Off by default. Set before starting the host:
+On by default. Set before starting the host to change it:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `REVERSE_AGENT_WORKSPACE_RECLAIM` | `off` | `report` logs what would be removed; `apply` removes it |
+| `REVERSE_AGENT_WORKSPACE_RECLAIM` | `apply` | `apply` removes; `report` only logs what would be removed; `off` disables it |
 | `REVERSE_AGENT_WORKSPACE_RECLAIM_RETENTION_DAYS` | `3` | a task must have been terminal, and its tree untouched, this long |
 | `REVERSE_AGENT_WORKSPACE_RECLAIM_POLL_MINUTES` | `15` | how often finished tasks are checked (minimum 1) |
 | `REVERSE_AGENT_WORKSPACE_RECLAIM_INTERVAL_HOURS` | `24` | how often the whole root is swept (minimum 1) |
@@ -46,8 +46,12 @@ also covers directories with no task row; its time and last report are kept in
 `workspace_reclaim_state.json` next to the task database, so a restart does
 not sweep again early.
 
-Try `report` first and read the host log (`workspace reclaim: would remove
-...`) before switching to `apply`.
+Use `report` to read the host log (`workspace reclaim: would remove ...`)
+without removing anything.
+
+Caches that a sandboxed run left unlistable (`.nt`, `.pytest_cache`) do not keep
+a tree. If the host account also cannot delete them, the removal is reported as
+failed and the leftover needs an administrator.
 
 ## Dispatch hold on a nearly full disk
 

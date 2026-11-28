@@ -43,10 +43,11 @@ uncommitted or unpushed work: that work is first written to a
 then is the checkout removed. Every other check above still applies.
 
 ``AutoReclaimer`` runs the same checks unattended inside the trusted host. It
-is off unless ``REVERSE_AGENT_WORKSPACE_RECLAIM`` is ``report`` (log only) or
-``apply``. Every poll it reclaims the workspace of each task that finished
-(terminal status, last update) more than the retention period ago, and once per
-sweep interval it sweeps the whole root. Standalone clones are never included.
+is on by default; ``REVERSE_AGENT_WORKSPACE_RECLAIM`` set to ``report`` only logs
+and ``off`` disables it. Every poll it reclaims the workspace of each task that
+finished (terminal status, last update) more than the retention period ago, and
+once per sweep interval it sweeps the whole root. Standalone clones are never
+included.
 When the disk holding the root has less free space than the configured floor,
 it warns, records that in its state file and sweeps early with the shorter
 low-disk retention; no safety check is relaxed.
@@ -186,7 +187,15 @@ def _walk(path: Path) -> tuple[float, bool, list[str], list[str]]:
     stack = [top]
     while stack:
         current = stack.pop()
-        with os.scandir(current) as it:
+        try:
+            listing = os.scandir(current)
+        except PermissionError:
+            # Sandboxed runs leave caches other accounts cannot list. They hold
+            # nothing to lose; anything else stays a reason to keep the tree.
+            if current != top and _is_cache(os.path.relpath(current, top)):
+                continue
+            raise
+        with listing as it:
             for entry in it:
                 st = entry.stat(follow_symlinks=False)
                 newest = max(newest, st.st_mtime)
@@ -670,7 +679,7 @@ def _env_number(env, name, default, minimum):
 def auto_config(env=None) -> dict:
     """Read the automatic reclaim settings; anything invalid falls back safely."""
     env = os.environ if env is None else env
-    mode = env.get("REVERSE_AGENT_WORKSPACE_RECLAIM", "").strip().lower() or "off"
+    mode = env.get("REVERSE_AGENT_WORKSPACE_RECLAIM", "").strip().lower() or "apply"
     if mode not in AUTO_MODES:
         LOG.warning("workspace reclaim: unknown mode %r; staying off", mode)
         mode = "off"

@@ -2471,7 +2471,7 @@ class CombinedTrustedHost:
             self._radar = configured_radar(goal_service=self._goal_service)
             if self._radar is not None:
                 self._radar.start()
-            # Off unless REVERSE_AGENT_WORKSPACE_RECLAIM is set; never deletes
+            # On unless REVERSE_AGENT_WORKSPACE_RECLAIM is off; never deletes
             # dirty, unpushed, recent or still-running task workspaces.
             from .workspace_reclaim import configured_reclaimer
             self._workspace_reclaimer = configured_reclaimer(
