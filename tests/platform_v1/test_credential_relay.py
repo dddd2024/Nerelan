@@ -899,11 +899,12 @@ def test_relay_never_waits_past_the_lease_or_on_other_errors(monkeypatch):
     from urllib.error import HTTPError
     from reverse_agent.model_access import credential_relay as relay_module
     monkeypatch.setattr(relay_module, "urlopen", lambda request, timeout: (_ for _ in ()).throw(_rate_limited("1")))
-    lease = SimpleNamespace(expired=False)
-    def expire(seconds):
-        lease.expired = True
-    with pytest.raises(CredentialRelayError, match="lease_expired_during_rate_limit_wait"):
-        relay_module._urlopen_waiting_out_rate_limits(object, 5.0, active=lease, sleep=expire)
+    for gone in ("expired", "released"):
+        lease = SimpleNamespace(expired=False, released=False)
+        def end(seconds, gone=gone, lease=lease):
+            setattr(lease, gone, True)
+        with pytest.raises(CredentialRelayError, match="lease_gone_during_rate_limit_wait"):
+            relay_module._urlopen_waiting_out_rate_limits(object, 5.0, active=lease, sleep=end)
     server_error = HTTPError("http://upstream", 500, "boom", Message(), io.BytesIO(b""))
     monkeypatch.setattr(relay_module, "urlopen", lambda request, timeout: (_ for _ in ()).throw(server_error))
     waits = []
@@ -949,3 +950,22 @@ def test_forward_to_upstream_relays_the_answer_after_a_real_429(manager: Credent
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+def test_relay_wait_budget_counts_upstream_time_not_only_sleeps(monkeypatch):
+    # Review of #1814: two slow 429 answers must not start a third request after the
+    # client's 120 s header timeout.
+    from urllib.error import HTTPError
+    from reverse_agent.model_access import credential_relay as relay_module
+    now = [0.0]
+    def slow_429(request, timeout):
+        now[0] += 35.0  # the upstream took 35 s to refuse
+        raise _rate_limited()
+    monkeypatch.setattr(relay_module, "urlopen", slow_429)
+    waits = []
+    def sleep(seconds):
+        waits.append(seconds)
+        now[0] += seconds
+    with pytest.raises(HTTPError):
+        relay_module._urlopen_waiting_out_rate_limits(object, 120.0, sleep=sleep, clock=lambda: now[0])
+    assert waits == [20.0]  # 35 + 20 + 35 = 90 s: a second 40 s wait would pass the 60 s budget

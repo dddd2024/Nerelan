@@ -377,14 +377,19 @@ def _retry_after_seconds(headers: Any) -> float | None:
     return max(0.0, value) if math.isfinite(value) else None
 
 
+def _lease_gone(active: Any) -> bool:
+    return active is not None and (bool(getattr(active, "released", False)) or bool(active.expired))
+
+
 def _urlopen_waiting_out_rate_limits(make_request: Any, timeout: float, *, active: Any = None,
-                                     sleep: Any = time.sleep) -> Any:
+                                     sleep: Any = time.sleep, clock: Any = time.monotonic) -> Any:
     """``urlopen`` that waits out an upstream 429 before anything is relayed.
 
-    The last 429 (or any other HTTP error) is raised as before. A wait never exceeds
-    the remaining budget nor outlives the lease.
+    The last 429 (or any other HTTP error) is raised as before. The budget is wall
+    time since the first request, upstream time included, so a retry never starts
+    after the client stopped waiting; no request is sent for a released or expired lease.
     """
-    spent = 0.0
+    started = clock()
     for attempt in range(RATE_LIMIT_MAX_RETRIES + 1):
         try:
             return urlopen(make_request(), timeout=timeout)  # noqa: S310 - gated relay
@@ -393,13 +398,12 @@ def _urlopen_waiting_out_rate_limits(make_request: Any, timeout: float, *, activ
                 raise
             asked = _retry_after_seconds(exc.headers)
             wait = RATE_LIMIT_DEFAULT_WAIT_SECONDS * (attempt + 1) if asked is None else asked
-            if spent + wait > RATE_LIMIT_WAIT_BUDGET_SECONDS or (active is not None and active.expired):
+            if clock() - started + wait > RATE_LIMIT_WAIT_BUDGET_SECONDS or _lease_gone(active):
                 raise
             exc.close()
             sleep(wait)
-            spent += wait
-            if active is not None and active.expired:
-                raise CredentialRelayError("lease_expired_during_rate_limit_wait")
+            if _lease_gone(active):
+                raise CredentialRelayError("lease_gone_during_rate_limit_wait")
     raise AssertionError("unreachable")
 
 
