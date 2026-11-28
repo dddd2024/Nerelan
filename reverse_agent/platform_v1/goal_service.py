@@ -1182,6 +1182,29 @@ class GoalService:
         while len(checked) > STALL_ROUTES_CHECKED_LIMIT:
             del checked[next(iter(checked))]  # oldest first; forgetting only means one more look
 
+    def _stalled_step_bindings(self, plan_task_id: str, history: Sequence[Mapping[str, Any]]) -> tuple[list[str], list[Any]]:
+        """Bindings this plan step's earlier attempts stalled on, and those attempts.
+
+        One fact for every reroute path: a step never moves back onto a binding it
+        already stalled on while another route qualifies (#1596, #1533).
+        """
+        from .quota_guard import LIVENESS_STALL_CLASSES
+        stalled: list[str] = []
+        attempts: list[Any] = []
+        for row in history:
+            if row["plan_task_id"] != plan_task_id or not row.get("from_task_id"):
+                continue
+            try:
+                attempt = self.store.get_task(row["from_task_id"])
+            except TaskStoreError:
+                continue
+            attempts.append(attempt)
+            if ((attempt.failure_classification in LIVENESS_STALL_CLASSES
+                 or _attempt_failure_cause(attempt) == UPSTREAM_CONNECTION)
+                    and attempt.binding_ref not in stalled):
+                stalled.append(attempt.binding_ref)
+        return stalled, attempts
+
     def _stall_reroute(self, plan_task: PlannedTask, goal: Any, planned: Mapping[str, PlannedTask],
                        failed: Any, history: Sequence[Mapping[str, Any]]) -> tuple[dict[str, Any] | None, str]:
         """Another eligible binding for a stalled step, or None with the reason (#1596).
@@ -1192,21 +1215,9 @@ class GoalService:
         """
         if self.task_resolver is None:
             return None, "no_router"
-        from .quota_guard import LIVENESS_STALL_CLASSES
-        avoided = [failed.binding_ref]
-        attempts = [failed]
-        for row in history:
-            if row["plan_task_id"] != plan_task.id or not row.get("from_task_id"):
-                continue
-            try:
-                attempt = self.store.get_task(row["from_task_id"])
-            except TaskStoreError:
-                continue
-            attempts.append(attempt)
-            if ((attempt.failure_classification in LIVENESS_STALL_CLASSES
-                 or _attempt_failure_cause(attempt) == UPSTREAM_CONNECTION)
-                    and attempt.binding_ref not in avoided):
-                avoided.append(attempt.binding_ref)
+        stalled, earlier = self._stalled_step_bindings(plan_task.id, history)
+        avoided = [failed.binding_ref] + [ref for ref in stalled if ref != failed.binding_ref]
+        attempts = [failed] + earlier
         # The floor is the strongest tier this step was routed at: a stall never undoes an
         # escalation or moves the retained tree to a weaker model (#1596 review).
         tiers = [event.metadata.get("tier") for attempt in attempts for event in self.store.get_events(attempt.id)
@@ -1238,6 +1249,7 @@ class GoalService:
         Each task can move once, so holds on both models cannot make it flap.
         """
         moved = []
+        history = None
         for link in self.control_store.list_goal_tasks(goal.id):
             if link["status"] != "QUEUED" or int(link["goal_revision"]) != goal.revision:
                 continue
@@ -1258,12 +1270,20 @@ class GoalService:
             if not selected:
                 continue
             held_tier = selected.get("tier")
+            if history is None:
+                history = self._escalations(goal.id)
+            stalled = [ref for ref in self._stalled_step_bindings(plan_task.id, history)[0] if ref != task.binding_ref]
+            # Avoid the step's stalled bindings with the task's own floor: stall-tier rules stay with stall retries.
+            avoid = {"avoid_bindings": tuple(stalled), "stall_tier": plan_task.difficulty} if stalled else {}
             try:
                 decision = self.task_resolver(plan_task, goal=goal, quota_held_binding=task.binding_ref,
                                               quota_preferred_tier=held_tier if type(held_tier) is int else 0,
-                                              probe_availability=False, **self._review_authors(plan_task, goal, planned))
+                                              probe_availability=False, **avoid,
+                                              **self._review_authors(plan_task, goal, planned))
             except TaskStoreError:
                 continue
+            if decision.get("binding_ref") in stalled:
+                continue  # only routes this step already stalled on: keep waiting for the held one
             from .model_router import model_identity, store_groups
             groups = store_groups(self.store)
             same_model = bool(selected.get("model_id")) and model_identity(
