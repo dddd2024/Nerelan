@@ -969,3 +969,25 @@ def test_relay_wait_budget_counts_upstream_time_not_only_sleeps(monkeypatch):
     with pytest.raises(HTTPError):
         relay_module._urlopen_waiting_out_rate_limits(object, 120.0, sleep=sleep, clock=lambda: now[0])
     assert waits == [20.0]  # 35 + 20 + 35 = 90 s: a second 40 s wait would pass the 60 s budget
+
+
+def test_relay_fallback_waits_fit_the_budget_and_retries_get_the_remaining_deadline(monkeypatch):
+    # Review of #1814 (bot P2): without Retry-After the second fallback wait must fit what
+    # is left of the budget, and a retry must not get the full upstream timeout again.
+    from urllib.error import HTTPError
+    from reverse_agent.model_access import credential_relay as relay_module
+    now = [0.0]
+    timeouts = []
+    def refuse(request, timeout):
+        timeouts.append(timeout)
+        now[0] += 1.0
+        raise _rate_limited()
+    monkeypatch.setattr(relay_module, "urlopen", refuse)
+    waits = []
+    def sleep(seconds):
+        waits.append(seconds)
+        now[0] += seconds
+    with pytest.raises(HTTPError):
+        relay_module._urlopen_waiting_out_rate_limits(object, 120.0, sleep=sleep, clock=lambda: now[0])
+    assert waits == [20.0, 38.0]  # 1 + 20 + 1 = 22 s spent, 38 s left of the 60 s budget
+    assert timeouts == [120.0, 94.0, 55.0]  # 115 s client deadline minus what was already spent

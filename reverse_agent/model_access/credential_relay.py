@@ -354,6 +354,9 @@ class CredentialRelayManager:
 RATE_LIMIT_MAX_RETRIES = 2
 RATE_LIMIT_WAIT_BUDGET_SECONDS = 60.0
 RATE_LIMIT_DEFAULT_WAIT_SECONDS = 20.0
+RATE_LIMIT_MIN_WAIT_SECONDS = 5.0
+# OpenCode's headerTimeout is 120 s; a retried request must answer before it.
+CLIENT_HEADER_DEADLINE_SECONDS = 115.0
 
 
 def _retry_after_seconds(headers: Any) -> float | None:
@@ -391,14 +394,21 @@ def _urlopen_waiting_out_rate_limits(make_request: Any, timeout: float, *, activ
     """
     started = clock()
     for attempt in range(RATE_LIMIT_MAX_RETRIES + 1):
+        elapsed = clock() - started
+        # A retry answers inside the client's own deadline, never the full upstream timeout again.
+        attempt_timeout = timeout if attempt == 0 else max(1.0, min(timeout, CLIENT_HEADER_DEADLINE_SECONDS - elapsed))
         try:
-            return urlopen(make_request(), timeout=timeout)  # noqa: S310 - gated relay
+            return urlopen(make_request(), timeout=attempt_timeout)  # noqa: S310 - gated relay
         except HTTPError as exc:
             if exc.code != 429 or attempt == RATE_LIMIT_MAX_RETRIES:
                 raise
+            remaining = RATE_LIMIT_WAIT_BUDGET_SECONDS - (clock() - started)
             asked = _retry_after_seconds(exc.headers)
-            wait = RATE_LIMIT_DEFAULT_WAIT_SECONDS * (attempt + 1) if asked is None else asked
-            if clock() - started + wait > RATE_LIMIT_WAIT_BUDGET_SECONDS or _lease_gone(active):
+            # Our own fallback schedule fits the remaining budget; an upstream's explicit ask is honoured or refused.
+            wait = min(RATE_LIMIT_DEFAULT_WAIT_SECONDS * (attempt + 1), remaining) if asked is None else asked
+            if (remaining < RATE_LIMIT_MIN_WAIT_SECONDS or wait > remaining
+                    or CLIENT_HEADER_DEADLINE_SECONDS - (clock() - started) - wait < RATE_LIMIT_MIN_WAIT_SECONDS
+                    or _lease_gone(active)):
                 raise
             exc.close()
             sleep(wait)
