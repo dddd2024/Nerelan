@@ -506,3 +506,43 @@ def test_a_started_review_is_never_rebound(monkeypatch):
     goals.task_resolver = lambda plan_task, *, goal, **kwargs: dict(INDEPENDENT)
     assert goals.escalate_failed_tasks(goal.id) == ()
     assert store.get_task(review).binding_ref == "rev-binding"
+
+
+def _resolver_spy(calls, choice):
+    def resolve(plan_task, *, goal, **kwargs):
+        calls.append(kwargs)
+        return dict(choice)
+    return resolve
+
+
+def test_a_channel_fault_retries_as_a_fresh_selection_not_a_capability_retry(monkeypatch):
+    classification, detail = "api_error_429", "exit=1 name=APIError status=429 message=inference exceeds tpm/rpm limit"
+    # #1597 live, 2026-11-28 06:32Z: a coding-kimi 429 on a tier-3 task was retried as a
+    # capability retry (failed_model set, so only proven candidates) and landed on tier-5 Opus.
+    store, control, goals, goal = _launched(monkeypatch, role="coder")
+    first = _link(control, goal.id, "T001")["task_id"]
+    store._conn.execute("UPDATE tasks SET status='FAILED', failure_classification=?, failure_detail=? WHERE id=?",
+                        (classification, detail, first))
+    store._conn.commit()
+    calls = []
+    goals.task_resolver = _resolver_spy(calls, {"binding_ref": "glm-free", "executor_kind": "opencode",
+                                                "model_id": "glm-5.3", "tier": 3, "reason": "cheapest_qualifying"})
+    [step] = goals.escalate_failed_tasks(goal.id)
+    failed_binding = store.get_task(first).binding_ref
+    assert calls[0]["failed_binding"] == "" and calls[0]["failed_tier"] == 0
+    assert calls[0]["avoid_bindings"] == (failed_binding,)  # ranked last, never excluded
+    planned = control.get_goal(goal.id).tasks[0]
+    assert calls[0]["stall_tier"] == goals._normalize_task(planned, seq=0).difficulty
+    assert store.get_task(step["to_task_id"]).binding_ref == "glm-free"
+
+
+def test_a_capability_failure_still_retries_with_the_failed_model(monkeypatch):
+    store, control, goals, goal = _launched(monkeypatch, role="coder")
+    first = _link(control, goal.id, "T001")["task_id"]
+    _fail(store, first)  # patch_hygiene_failed: the model's own work
+    calls = []
+    goals.task_resolver = _resolver_spy(calls, {"binding_ref": "strong", "executor_kind": "claude_code",
+                                                "model_id": "opus", "tier": 5, "reason": "escalation_higher_tier"})
+    goals.escalate_failed_tasks(goal.id)
+    assert calls[0]["failed_binding"] == store.get_task(first).binding_ref
+    assert "avoid_bindings" not in calls[0]

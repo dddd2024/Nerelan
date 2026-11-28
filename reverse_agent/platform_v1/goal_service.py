@@ -2170,15 +2170,26 @@ class GoalService:
                                 if row.get("binding_id") == attempt.binding_ref), None)
                             if model:
                                 refused_models.append(model)
+                # A channel fault (rate limit, quota answer, broken route) is no capability
+                # evidence (#1533): it routes like a fresh selection at the task's own floor,
+                # avoiding the faulted binding and the step's stalled ones without excluding
+                # them, never as a capability retry that must reach a higher or proven tier.
+                channel_fault = kind != "model" and not (refusal or refused_models or unavailable or no_reply)
+                avoid = {}
+                if channel_fault:
+                    stalled_refs, _ = self._stalled_step_bindings(plan_task.id, history)
+                    avoid = {"avoid_bindings": tuple(dict.fromkeys([failed.binding_ref, *stalled_refs])),
+                             "stall_tier": plan_task.difficulty}
                 try:
                     retry_args = {"refused_models": refused_models} if refused_models else {}
                     retry_args.update(self._review_authors(plan_task, goal, planned))
                     # Non-model failures say nothing about capability: do not raise the tier floor.
                     decision = self.task_resolver(plan_task, goal=goal,
-                                                  failed_binding="" if refusal or refused_models or unavailable or no_reply
+                                                  failed_binding="" if (refusal or refused_models or unavailable
+                                                                        or no_reply or channel_fault)
                                                   else failed.binding_ref,
                                                   failed_tier=failed_tier if kind == "model" and not unavailable else 0,
-                                                  **retry_args)
+                                                  **avoid, **retry_args)
                 except TaskStoreError as exc:
                     if str(exc) == "review_not_independent":
                         self.store.block_model_selection(failed.id, decision=getattr(exc, "decision", {"reason": str(exc)}))
