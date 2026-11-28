@@ -418,3 +418,91 @@ def test_functional_check_not_run_does_not_escalate(monkeypatch):
     events = [e for e in store.get_events(failed_id) if e.type == "MODEL_SELECTION_FAILED"]
     assert len(events) == 1
     assert events[0].metadata["reason"] == "automatic_retry_not_allowed:functional_check_not_run"
+
+
+def _review_goal(monkeypatch, key):
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    monkeypatch.setattr(goal_service_module, "resolve_repository_workspace", lambda repository: object())
+    monkeypatch.setattr(goal_service_module, "repository_base", lambda repository: BASE)
+    roster = {**ROSTER, "reviewer": ("opencode", "rev-binding")}
+    goals = GoalService(store=store, control_store=control, roster_resolver=lambda name: roster[name])
+    goal = goals.create({"objective": "Review stays independent", "repository": "dddd2024/Nerelan",
+                         "idempotency_key": key, "executor_kind": "opencode",
+                         "orchestration_mode": "agent_team", "binding_ref": ""})
+    checks = [{"profile_id": "python_pytest", "working_directory": "."}]
+    goals.plan(goal.id, expected_revision=1, tasks=[
+        {"id": "T001", "title": "Implement", "instruction": "Implement", "agent_role": "coder", "validation_checks": checks},
+        {"id": "T002", "title": "Review", "instruction": "Review", "kind": "review", "agent_role": "reviewer",
+         "dependencies": ["T001"], "artifact_input": {"plan_task_id": "T001"}, "validation_checks": checks},
+    ])
+    goals.approve(goal.id, expected_revision=1)
+    window = autonomy.activate({**_window_payload(), "capabilities": ["execute_task", "validate_task"]})
+    goals.launch(goal.id, expected_revision=1, window_id=window.id)
+    author = _link(control, goal.id, "T001")["task_id"]
+    review = _link(control, goal.id, "T002")["task_id"]
+    store.add_event(review, event_type="MODEL_SELECTED", title="Model selected", description="rev-binding",
+                    metadata={"binding_ref": "rev-binding", "model_id": "trae-cn/glm-5.3-max", "tier": 4})
+    return store, control, goals, goal, author, review
+
+
+def _author_on(store, task_id, binding, model):
+    store._conn.execute("UPDATE tasks SET binding_ref=? WHERE id=?", (binding, task_id))
+    store._conn.commit()
+    store.add_event(task_id, event_type="MODEL_SELECTED", title="Model selected", description=binding,
+                    metadata={"binding_ref": binding, "model_id": model, "tier": 4, "reroute_reason": "quota_hold"})
+
+
+INDEPENDENT = {"binding_ref": "kimi-rev", "executor_kind": "opencode", "model_id": "kimi-k3", "tier": 4,
+               "reason": "cheapest_qualifying"}
+
+
+def test_review_moves_off_a_model_its_author_was_rerouted_onto(monkeypatch):
+    # #1597 live, 2026-11-28: the implement step was quota-rerouted onto the model its
+    # review had been placed on at launch; dispatch would refuse the review as not independent.
+    store, control, goals, goal, author, review = _review_goal(monkeypatch, "rebind-review")
+    _author_on(store, author, "trae-impl", "trae-cn/glm-5.3-max")
+    calls = []
+    def resolve(plan_task, *, goal, **kwargs):
+        calls.append((plan_task.id, kwargs))
+        return dict(INDEPENDENT)
+    goals.task_resolver = resolve
+    [moved] = goals.escalate_failed_tasks(goal.id)
+    assert moved["reason"] == "review_author_conflict_rebind" and moved["to_binding"] == "kimi-rev"
+    assert calls and calls[0][0] == "T002" and "trae-cn/glm-5.3-max" in calls[0][1]["author_models"]
+    task = store.get_task(review)
+    assert (task.binding_ref, task.status) == ("kimi-rev", "QUEUED")
+    latest = [e for e in store.get_events(review) if e.type == "MODEL_SELECTED"][-1]
+    assert latest.metadata["reroute_reason"] == "review_author_conflict"
+    assert control.list_task_escalations(goal.id) == ()  # a rebind, not a retry
+    assert goals.escalate_failed_tasks(goal.id) == ()  # no conflict left
+
+
+@pytest.mark.parametrize("author_model,choice", [
+    ("kimi-k3", dict(INDEPENDENT)),                                               # no conflict: never re-selected
+    ("trae-cn/glm-5.3-max", dict(INDEPENDENT, model_id="trae-cn/glm-5.3-max")),   # only the author's model
+    ("trae-cn/glm-5.3-max", dict(INDEPENDENT, tier=2)),                           # below the review floor
+    ("trae-cn/glm-5.3-max", TaskStoreError("review_not_independent")),           # no independent reviewer now
+])
+def test_review_stays_without_an_independent_qualifying_alternative(monkeypatch, author_model, choice):
+    store, control, goals, goal, author, review = _review_goal(monkeypatch, f"rebind-stay-{author_model}-{choice!r}"[:60])
+    _author_on(store, author, "author-binding", author_model)
+    def resolve(plan_task, *, goal, **kwargs):
+        if isinstance(choice, Exception):
+            raise choice
+        return dict(choice)
+    goals.task_resolver = resolve
+    assert goals.escalate_failed_tasks(goal.id) == ()
+    assert store.get_task(review).binding_ref == "rev-binding"
+
+
+def test_a_started_review_is_never_rebound(monkeypatch):
+    store, control, goals, goal, author, review = _review_goal(monkeypatch, "rebind-started")
+    _author_on(store, author, "trae-impl", "trae-cn/glm-5.3-max")
+    store._conn.execute("INSERT INTO durable_runs (run_id, task_id, execution_id, worktree_path, lease_epoch, "
+                        "lease_expiry_ms, created_at, updated_at) VALUES ('run-r', ?, 'e', 'w', 1, 1, 'x', 'x')", (review,))
+    store._conn.commit()
+    goals.task_resolver = lambda plan_task, *, goal, **kwargs: dict(INDEPENDENT)
+    assert goals.escalate_failed_tasks(goal.id) == ()
+    assert store.get_task(review).binding_ref == "rev-binding"

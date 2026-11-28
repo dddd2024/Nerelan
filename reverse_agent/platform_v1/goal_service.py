@@ -1150,7 +1150,7 @@ class GoalService:
                 "AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday('now'))", (window.id,)).fetchone():
             return ()
         planned = {item.id: item for item in (self._normalize_task(raw, seq=seq) for seq, raw in enumerate(goal.tasks))}
-        return tuple(self._reroute_quota_held(goal, planned))
+        return tuple(self._reroute_quota_held(goal, planned) + self._rebind_author_conflicted_reviews(goal, planned))
 
     @property
     def _stall_routes_checked(self) -> dict[str, str]:
@@ -1299,6 +1299,67 @@ class GoalService:
                                    held_tier=held_tier, required_tier=plan_task.difficulty, hold=hold)):
                 continue
             moved.append({"plan_task_id": plan_task.id, "task_id": task.id, "reason": "quota_hold_reroute",
+                          "from_binding": task.binding_ref, "to_binding": decision["binding_ref"]})
+        return moved
+
+    def _rebind_author_conflicted_reviews(self, goal: Any, planned: Mapping[str, PlannedTask]) -> list[dict[str, Any]]:
+        """Re-select a never-started review whose model has since become one of its authors.
+
+        A review is placed when the Goal launches, before its authors run. A later quota
+        reroute, stall reroute or escalation may move an author onto that same model; the
+        review would then be refused at dispatch as not independent and wait for an Owner
+        retry. Any author change converges here, so no reroute path needs its own rule.
+        """
+        from .model_router import model_identity, store_groups
+        moved = []
+        groups = None
+        for link in self.control_store.list_goal_tasks(goal.id):
+            if link["status"] != "QUEUED" or int(link["goal_revision"]) != goal.revision:
+                continue
+            plan_task = planned.get(link["plan_task_id"])
+            if plan_task is None or plan_task.validation_command_id or not self._review_ancestry(plan_task, planned):
+                continue
+            task = self.store.get_task(link["task_id"])
+            selected = next((event.metadata for event in reversed(self.store.get_events(task.id))
+                             if event.type == "MODEL_SELECTED" and event.metadata.get("binding_ref") == task.binding_ref), {})
+            if not selected.get("model_id"):
+                continue
+            try:
+                authors = self._review_authors(plan_task, goal, planned)
+            except TaskStoreError:
+                continue  # authorship not provable yet: dispatch keeps its own refusal
+            groups = store_groups(self.store) if groups is None else groups
+            review_model = model_identity(str(selected["model_id"]), groups)
+            conflicted = (task.binding_ref in authors.get("author_bindings", ())
+                          or any(model_identity(str(model), groups) == review_model
+                                 for model in authors.get("author_models", ())))
+            if not conflicted:
+                continue
+            try:
+                decision = self.task_resolver(plan_task, goal=goal, probe_availability=False, **authors)
+            except TaskStoreError:
+                continue  # no independent reviewer now: the step waits, as dispatch would refuse it
+            new_model = model_identity(str(decision.get("model_id") or ""), groups)
+            if (decision.get("binding_ref") in {"", task.binding_ref} or not new_model
+                    or any(model_identity(str(model), groups) == new_model for model in authors.get("author_models", ()))
+                    or decision.get("binding_ref") in authors.get("author_bindings", ())
+                    or type(decision.get("tier")) is not int or decision["tier"] < plan_task.difficulty):
+                continue
+            native = decision["executor_kind"] in {"codex", "claude_code"}
+            try:
+                base = self._approved_base(task)
+            except TaskStoreError:
+                continue
+            if native and not base:
+                continue
+            if not self.control_store.reroute_held_task(
+                    task.id, expected_binding=task.binding_ref, binding_ref=decision["binding_ref"],
+                    executor_kind=decision["executor_kind"], branch=base if native else "",
+                    require_hold=False,
+                    selection=dict(decision, reroute_reason="review_author_conflict", from_binding=task.binding_ref,
+                                   author_models=list(authors.get("author_models", ())))):
+                continue
+            moved.append({"plan_task_id": plan_task.id, "task_id": task.id, "reason": "review_author_conflict_rebind",
                           "from_binding": task.binding_ref, "to_binding": decision["binding_ref"]})
         return moved
 
@@ -1842,6 +1903,7 @@ class GoalService:
         self._prune_stall_routes(goal_id)
         if self.task_resolver is not None:
             outcomes.extend(self._reroute_quota_held(goal, planned))
+            outcomes.extend(self._rebind_author_conflicted_reviews(goal, planned))
         for link in self.control_store.list_goal_tasks(goal_id):
             if link["status"] not in {"FAILED", "BLOCKED"} or int(link["goal_revision"]) != goal.revision:
                 continue
