@@ -648,6 +648,7 @@ class GoalService:
         expected_revision: int,
         acceptance_criteria: Sequence[str] = (),
         tasks: Sequence[Mapping[str, Any]] = (),
+        expected_artifact_digest: str | None = None,
     ) -> GoalPlan:
         goal = self.control_store.get_goal(goal_id)
         if goal.revision != expected_revision:
@@ -667,6 +668,7 @@ class GoalService:
             plan_markdown=plan,
             tasks=tuple(_plan_task_dict(item) for item in planned),
             acceptance_criteria=criteria,
+            expected_artifact_digest=expected_artifact_digest,
         )
         return GoalPlan(
             goal=saved,

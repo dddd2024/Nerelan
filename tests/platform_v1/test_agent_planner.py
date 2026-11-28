@@ -621,3 +621,25 @@ def test_deterministic_fast_path_plans_scoped_r1_without_runner_and_reports_conf
     for blocked in ("AGENTS.md", "..AGENTS.md", "..docs/agents/x.md", "..requirements.txt", "/AGENTS.md", "."):
         assert build_fast_path_plan(goal, fast_path_spec={**spec, "allowed_paths": [blocked]}) is None
     assert build_fast_path_plan(goal, fast_path_spec={**spec, "difficulty": 4}) is None
+
+
+def test_fast_path_cannot_overwrite_first_plan_saved_at_the_same_revision(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1.agent_planner import build_fast_path_plan
+
+    goals, goal = _goals()
+    planner, _ = _planner(tmp_path, goals, lambda **_: pytest.fail("fast path must not invoke LLM runner"))
+    scope = {"difficulty": 3, "allowed_paths": ["tests/test_x.py"],
+             "validation_checks": [{"profile_id": "python_pytest", "working_directory": "."}]}
+    draft_plan = build_fast_path_plan(goal, fast_path_spec=scope)
+    implement, review = draft_plan["tasks"]
+    save = goals.plan
+
+    def save_with_interleaving(goal_id, **kwargs):
+        first = save(goal_id, expected_revision=1, tasks=[implement, {**review, "difficulty": 5}])
+        assert first.goal.revision == 1 and first.goal.tasks[1]["difficulty"] == 5
+        return save(goal_id, **kwargs)
+
+    monkeypatch.setattr(goals, "plan", save_with_interleaving)
+    with pytest.raises(TaskStoreError, match="goal_changed_during_planning"):
+        planner.start(goal.id, expected_revision=1, background=False, fast_path_spec=scope)
+    assert goals.control_store.get_goal(goal.id).tasks[1]["difficulty"] == 5

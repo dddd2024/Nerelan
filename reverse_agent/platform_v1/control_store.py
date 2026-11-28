@@ -824,6 +824,7 @@ class PlatformControlStore:
         plan_markdown: str,
         tasks: Sequence[Mapping[str, Any]],
         acceptance_criteria: Sequence[str],
+        expected_artifact_digest: str | None = None,
     ) -> GoalRecord:
         payload = {
             "goal_id": goal_id,
@@ -839,6 +840,8 @@ class PlatformControlStore:
             current = self.get_goal(goal_id)
             if current.revision != expected_revision or current.status not in {"DRAFT", "PLANNED"}:
                 raise TaskStoreError("goal_revision_or_state_mismatch")
+            if expected_artifact_digest is not None and current.artifact_digest != expected_artifact_digest:
+                raise TaskStoreError("goal_changed_during_planning")
             if current.status == "PLANNED" and current.artifact_digest == digest:
                 return current
             revision = expected_revision + 1 if current.status == "PLANNED" else expected_revision

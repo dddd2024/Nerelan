@@ -474,6 +474,7 @@ class AgentPlanner:
                 self._goals.plan(
                     goal.id,
                     expected_revision=goal.revision,
+                    expected_artifact_digest=goal.artifact_digest,
                     tasks=fast_plan["tasks"],
                     acceptance_criteria=fast_plan["acceptance_criteria"],
                 )
@@ -553,7 +554,8 @@ class AgentPlanner:
                     goal.revision, goal.status, goal.artifact_digest):
                 raise TaskStoreError("goal_changed_during_planning")
             self._goals.plan(goal.id, expected_revision=goal.revision, tasks=plan["tasks"],
-                             acceptance_criteria=plan["acceptance_criteria"])
+                             acceptance_criteria=plan["acceptance_criteria"],
+                             expected_artifact_digest=goal.artifact_digest)
             outcome, error = "PLANNED", ""
         except ExecutorRuntimeError as exc:
             outcome, error = "FAILED", f"agent_planner_error:{_runtime_error_code(exc)}"
