@@ -1708,10 +1708,21 @@ class CombinedTrustedHost:
         rows = self._control_store.quota_reservations()
         return quota_reservation.goal_fit(routed, evidence, rows, alternatives=alternatives)
 
+    def _pool_hold(self, task, binding: Mapping[str, Any], reason: str, pool_key: str, used: int, cap: int):
+        """Refuse before claim and leave the hold where the quota rerouter reads it (#1533)."""
+        self.__dict__.setdefault("_pending_pool_dispatches", {}).pop(task.id, None)
+        note = getattr(getattr(self, "_control_store", None), "note_dispatch_hold", None)
+        if callable(note):
+            note(task.id, binding_ref=binding["binding_id"],
+                 verdict={"decision": "quota_wait", "reason": reason, "pool": pool_key, "used": used, "cap": cap})
+        raise TaskStoreError(f"QUOTA_WAIT:{reason}:{pool_key}:{used}/{cap}")
+
     def _prepare_task_quota(self, task) -> dict[str, str] | None:
         """Account-bound preparation outside the coordinator's claim transaction."""
         from . import quota_reservation
         from .usage_ledger import estimation_records
+        # A dispatch left pending by an earlier preparation that never settled is void.
+        self.__dict__.setdefault("_pending_pool_dispatches", {}).pop(task.id, None)
         resume_route = None
         if getattr(task, "status", "") == "QUOTA_WAIT":
             from .goal_service import GoalService
@@ -1796,7 +1807,7 @@ class CombinedTrustedHost:
                 pool_limits=pool_limits,
             ).get(pool_key, 0)
             if in_flight >= pool_limit:
-                raise TaskStoreError(f"QUOTA_WAIT:pool_concurrency_limit:{pool_key}:{in_flight}/{pool_limit}")
+                self._pool_hold(task, binding, "pool_concurrency_limit", pool_key, in_flight, pool_limit)
         rpm_cap = pool_cfg.get("rpm_limit")
         tpm_cap = pool_cfg.get("tpm_limit")
         rate_fn = getattr(self, "_recent_pool_rates", None)
@@ -1805,21 +1816,23 @@ class CombinedTrustedHost:
             rpm_used = rpm_by_pool.get(pool_key, 0)
             tpm_used = tpm_by_pool.get(pool_key, 0)
             if isinstance(rpm_cap, int) and rpm_cap > 0 and rpm_used >= rpm_cap:
-                raise TaskStoreError(f"QUOTA_WAIT:pool_rpm_limit:{pool_key}:{rpm_used}/{rpm_cap}")
+                self._pool_hold(task, binding, "pool_rpm_limit", pool_key, rpm_used, rpm_cap)
             if isinstance(tpm_cap, int) and tpm_cap > 0 and tpm_used >= tpm_cap:
-                raise TaskStoreError(f"QUOTA_WAIT:pool_tpm_limit:{pool_key}:{tpm_used}/{tpm_cap}")
+                self._pool_hold(task, binding, "pool_tpm_limit", pool_key, tpm_used, tpm_cap)
         feedback_identity = ({"binding_ref": binding["binding_id"],
                               "account_ref": connection.get("account_ref") or connection["connection_id"]}
                              if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1" else None)
+        if pool_key and ((isinstance(rpm_cap, int) and rpm_cap > 0) or (isinstance(tpm_cap, int) and tpm_cap > 0)):
+            # Counted only once the claim commits (#1533): a preparation that never
+            # dispatches must not use up the pool's rate window for the next task.
+            self.__dict__.setdefault("_pending_pool_dispatches", {})[task.id] = pool_key
+        else:
+            self.__dict__.setdefault("_pending_pool_dispatches", {}).pop(task.id, None)
         if connection.get("auth_method") != "external_cli_session":
-            if pool_key and ((isinstance(rpm_cap, int) and rpm_cap > 0) or (isinstance(tpm_cap, int) and tpm_cap > 0)):
-                self._record_live_pool_dispatch(pool_key)
             return feedback_identity
         from ..model_access.contracts import NATIVE_CLI_PROVIDERS
         provider = connection.get("executor_provider_id")
         if provider not in NATIVE_CLI_PROVIDERS:
-            if pool_key and ((isinstance(rpm_cap, int) and rpm_cap > 0) or (isinstance(tpm_cap, int) and tpm_cap > 0)):
-                self._record_live_pool_dispatch(pool_key)
             return feedback_identity  # identity is useful even when this route has no quota windows
         account = connection.get("account_ref") or connection["connection_id"]
         evidence = self._native_quota_evidence(connection, refresh=True)
@@ -1830,7 +1843,12 @@ class CombinedTrustedHost:
         need = self._native_quota_need(binding, task, evidence, estimation_records(self._task_store), pace)
         self._control_store.prepare_quota_admission(task_id=task.id,
             binding_ref=binding["binding_id"], account_ref=account, evidence=evidence, need=need, resume_route=resume_route)
-        if pool_key and ((isinstance(rpm_cap, int) and rpm_cap > 0) or (isinstance(tpm_cap, int) and tpm_cap > 0)):
+        return None
+
+    def _settle_task_dispatch(self, task_id: str, claimed: bool) -> None:
+        """Count a prepared pool dispatch only when its claim committed (#1533)."""
+        pool_key = self.__dict__.setdefault("_pending_pool_dispatches", {}).pop(task_id, None)
+        if claimed and pool_key:
             self._record_live_pool_dispatch(pool_key)
 
     def _quota_check(self, binding: Mapping[str, Any], *, task_specific: bool = False) -> dict[str, Any] | None:
@@ -2449,6 +2467,7 @@ class CombinedTrustedHost:
                 goal_escalator=self._goal_service.escalate_failed_tasks,
                 quota_rerouter=self._goal_service.reroute_quota_held,
                 quota_preparer=self._prepare_task_quota,
+                dispatch_settler=self._settle_task_dispatch,
                 account_feedback=self._report_account_feedback_to_brain,
                 idle_wait_hint=self._multi_account_idle_wait,
                 quota_wait_target=self._quota_wait_target(),
