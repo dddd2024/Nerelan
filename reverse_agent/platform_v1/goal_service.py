@@ -1136,7 +1136,7 @@ class GoalService:
         return tuple(sorted(visited))
 
     def reroute_quota_held(self, goal_id: str) -> tuple[dict[str, Any], ...]:
-        """Coordinator entry for quota holds; same window and mode bounds as escalation."""
+        """Coordinator entry for quota holds; requires the original goal window."""
         if self.stop_if_source_closed(goal_id):
             return ()
         goal = self.control_store.get_goal(goal_id)
@@ -1230,12 +1230,10 @@ class GoalService:
         return decision, STALL_REROUTED
 
     def _reroute_quota_held(self, goal: Any, planned: Mapping[str, PlannedTask]) -> list[dict[str, Any]]:
-        """A quota hold moves a never-started task to an equal-or-higher-tier model (#1313 D).
+        """Place a never-started task on a different model that meets its plan requirements.
 
-        The held model's selected tier is the floor: the router's no-downgrade rule
-        picks a higher tier, then a distinct model at the same tier. If it can only
-        offer the held model itself, or a lower tier, the task keeps waiting. Each
-        task re-routes at most once, so holds on both models cannot make it flap.
+        A pre-dispatch quota hold supplies no evidence of a capability failure.
+        Each task can move once, so holds on both models cannot make it flap.
         """
         moved = []
         for link in self.control_store.list_goal_tasks(goal.id):
@@ -1255,12 +1253,13 @@ class GoalService:
                 continue
             selected = next((event.metadata for event in reversed(events) if event.type == "MODEL_SELECTED"
                              and event.metadata.get("binding_ref") == task.binding_ref), {})
+            if not selected:
+                continue
             held_tier = selected.get("tier")
-            if type(held_tier) is not int or not 1 <= held_tier <= 5:
-                continue  # no recorded selection to compare against: never guess a floor
             try:
-                decision = self.task_resolver(plan_task, goal=goal, failed_binding=task.binding_ref,
-                                              failed_tier=held_tier, **self._review_authors(plan_task, goal, planned))
+                decision = self.task_resolver(plan_task, goal=goal, quota_held_binding=task.binding_ref,
+                                              quota_preferred_tier=held_tier if type(held_tier) is int else 0,
+                                              probe_availability=False, **self._review_authors(plan_task, goal, planned))
             except TaskStoreError:
                 continue
             from .model_router import model_identity, store_groups
@@ -1268,8 +1267,8 @@ class GoalService:
             same_model = bool(selected.get("model_id")) and model_identity(
                 str(decision.get("model_id") or ""), groups) == model_identity(str(selected["model_id"]), groups)
             if (decision.get("binding_ref") in {"", task.binding_ref} or same_model
-                    or decision.get("downgrade_fallback")
-                    or type(decision.get("tier")) is not int or decision["tier"] < held_tier):
+                    or (decision.get("liveness") or {}).get("fallback")
+                    or type(decision.get("tier")) is not int or decision["tier"] < plan_task.difficulty):
                 continue  # another binding of the held model is not a different model
             native = decision["executor_kind"] in {"codex", "claude_code"}
             try:
@@ -1293,12 +1292,10 @@ class GoalService:
                 continue
             if not self.control_store.reroute_held_task(
                     task.id, expected_binding=task.binding_ref, binding_ref=decision["binding_ref"],
-                    executor_kind=decision["executor_kind"], branch=base if native and base else ""):
+                    executor_kind=decision["executor_kind"], branch=base if native and base else "",
+                    selection=dict(decision, reroute_reason="quota_hold", from_binding=task.binding_ref,
+                                   held_tier=held_tier, required_tier=plan_task.difficulty, hold=hold)):
                 continue
-            self.store.add_event(task.id, event_type="MODEL_SELECTED", title="Model selected",
-                                 description=f"{decision['binding_ref']}: quota_hold_reroute from {task.binding_ref}",
-                                 metadata=dict(decision, reroute_reason="quota_hold", from_binding=task.binding_ref,
-                                               held_tier=held_tier, hold=hold))
             moved.append({"plan_task_id": plan_task.id, "task_id": task.id, "reason": "quota_hold_reroute",
                           "from_binding": task.binding_ref, "to_binding": decision["binding_ref"]})
         return moved

@@ -2359,17 +2359,18 @@ class PlatformControlStore:
         return tuple(outcomes)
 
     def reroute_held_task(self, task_id: str, *, expected_binding: str, binding_ref: str,
-                          executor_kind: str, branch: str) -> bool:
+                          executor_kind: str, branch: str, selection: Mapping[str, Any]) -> bool:
         """Move a never-started, quota-held QUEUED task to another binding (#1313 D).
 
         Compare-and-set on status and binding; the stale admission input is dropped so
         the next claim prepares quota evidence for the new binding.
         """
         with self._lock, self._conn:
+            self._conn.execute("BEGIN IMMEDIATE")
             started = self._conn.execute(
                 "SELECT 1 FROM platform_coordinator_claims WHERE task_id=? UNION ALL "
                 "SELECT 1 FROM durable_runs WHERE task_id=? LIMIT 1", (task_id, task_id)).fetchone()
-            if started is not None:
+            if started is not None or self.quota_hold(task_id) is None:
                 return False
             moved = self._conn.execute(
                 "UPDATE tasks SET binding_ref=?, executor_kind=?, branch=?, updated_at=? "
@@ -2378,6 +2379,8 @@ class PlatformControlStore:
             if moved.rowcount != 1:
                 return False
             self._conn.execute("DELETE FROM platform_quota_admissions WHERE task_id=?", (task_id,))
+            self.task_store._append_event(task_id=task_id, event_type="MODEL_SELECTED", title="Model selected",
+                description=f"{binding_ref}: quota_hold_reroute from {expected_binding}", metadata=selection)
             return True
 
     @property
@@ -2392,6 +2395,20 @@ class PlatformControlStore:
             row = self._conn.execute("SELECT verdict_json FROM platform_quota_admissions WHERE task_id=?", (task_id,)).fetchone()
             verdict = json.loads(row["verdict_json"]) if row else {}
             return verdict if verdict.get("decision") == "quota_wait" else None
+
+    def quota_reservations(self, account_ref: str = "", *, exclude_active_for: str = "") -> list[dict[str, Any]]:
+        """Account reservations used by both quota placement and the claim transaction."""
+        with self._lock:
+            rows = [dict(row) for row in self._conn.execute(
+                "SELECT * FROM platform_budget_reservations WHERE "
+                + ("account_ref=?" if account_ref else "account_ref<>?")
+                + " AND NOT (task_id=? AND state='ACTIVE')", (account_ref, exclude_active_for))]
+        for row in rows:
+            row["quota_windows"] = json.loads(row["quota_windows_json"])
+            fact = json.loads(row["settlement_json"])
+            row["actual_windows"] = fact.get("actual_windows", {})
+            row["actual_observations"] = fact.get("actual_observations", [])
+        return rows
 
     def prepare_quota_admission(self, *, task_id: str, binding_ref: str,
                                 account_ref: str, evidence: Mapping[str, Any],
@@ -2409,11 +2426,16 @@ class PlatformControlStore:
                                                  small_task=small_task)
         quota_reservation.admission(selected, need, buffer=safety_buffer, small_task=small_task)
         with self._lock, self._conn:
+            self._conn.execute("BEGIN IMMEDIATE")
+            current = self.task_store.get_task(task_id, event_limit=0)
+            expected_binding = resume_route["source_binding"] if resume_route else binding_ref
+            if current.binding_ref != expected_binding:
+                raise TaskStoreError("quota_reservation_identity_changed")
             active = self._conn.execute("SELECT account_ref, binding_ref FROM platform_budget_reservations WHERE task_id=? AND state='ACTIVE'", (task_id,)).fetchone()
             if active and (active["account_ref"] != account_ref or active["binding_ref"] != binding_ref):
                 raise TaskStoreError("quota_reservation_identity_changed")
             resume_checkpoint = None
-            if self.task_store.get_task(task_id).status == "QUOTA_WAIT":
+            if current.status == "QUOTA_WAIT":
                 payload = self.task_store._verify_quota_resume(task_id)
                 prior = self._conn.execute("SELECT evidence_json FROM platform_quota_admissions WHERE task_id=?", (task_id,)).fetchone()
                 from ..model_access.quota_forecast import parse_time
@@ -2479,6 +2501,7 @@ class PlatformControlStore:
         owner: str,
         lease_ms: int,
         feedback_identity: Mapping[str, str] | None = None,
+        expected_binding: str | None = None,
     ) -> tuple[int, AutonomousWindowRecord]:
         with self._lock:
             return self._claim_task_locked(
@@ -2487,6 +2510,7 @@ class PlatformControlStore:
                 owner=owner,
                 lease_ms=lease_ms,
                 feedback_identity=feedback_identity,
+                expected_binding=expected_binding,
             )
 
     def _claim_task_locked(
@@ -2497,6 +2521,7 @@ class PlatformControlStore:
         owner: str,
         lease_ms: int,
         feedback_identity: Mapping[str, str] | None = None,
+        expected_binding: str | None = None,
     ) -> tuple[int, AutonomousWindowRecord]:
         now_ms = _utc_now_ms()
         cur = self._conn.cursor()
@@ -2530,6 +2555,10 @@ class PlatformControlStore:
             task = cur.execute("SELECT status, binding_ref FROM tasks WHERE id = ?", (task_id,)).fetchone()
             if task is None:
                 raise TaskStoreError("task_not_claimable")
+            if expected_binding is not None and task["binding_ref"] != expected_binding:
+                # A quota reroute may have replaced this binding and cleared its
+                # prepared input while this coordinator was about to claim it.
+                raise TaskStoreError("quota_reservation_identity_changed")
             if feedback_identity is not None:
                 from ..model_access.contracts import _account_ref
                 try:
@@ -2587,12 +2616,7 @@ class PlatformControlStore:
                     raise TaskStoreError("quota_reservation_identity_changed")
             if quota_input is not None and not completion_recovery:
                 from . import quota_reservation
-                outstanding = [dict(r) for r in cur.execute("SELECT * FROM platform_budget_reservations WHERE account_ref=? AND NOT (task_id=? AND state='ACTIVE')", (quota_input["account_ref"], task_id))]
-                for row in outstanding:
-                    row["quota_windows"] = json.loads(row["quota_windows_json"])
-                    fact = json.loads(row["settlement_json"])
-                    row["actual_windows"] = fact.get("actual_windows", {})
-                    row["actual_observations"] = fact.get("actual_observations", [])
+                outstanding = self.quota_reservations(quota_input["account_ref"], exclude_active_for=task_id)
                 latest = cur.execute("SELECT evidence_json FROM platform_quota_observations WHERE account_ref=?", (quota_input["account_ref"],)).fetchone()
                 quota_need = json.loads(quota_input["need_json"])
                 if active_reservation is not None:

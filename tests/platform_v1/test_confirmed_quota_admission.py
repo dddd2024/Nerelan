@@ -98,6 +98,46 @@ def test_insufficient_forecast_holds_agent_team(monkeypatch):
     assert host._quota_guard_entries()[0]["decision"] == "refuse"
 
 
+def test_durable_native_resolution_uses_matching_claim_and_keeps_confirmed_exhaustion(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+    import time
+    from test_agent_escalation import _launched, _link
+    from test_model_router import fixture_host
+    from reverse_agent.platform_v1.binding_resolver import BindingResolver
+
+    store, control, _, created = _launched(monkeypatch, role="coder",
+        roster={"coder": ("claude_code", "strong"), "simple": ("opencode", "cheap")})
+    goal = control.get_goal(created.id)
+    task = store.get_task(_link(control, goal.id, "T001")["task_id"])
+    host = fixture_host(monkeypatch, tmp_path)
+    host._task_store, host._control_store = store, control
+    observed_at = time.time()
+    monkeypatch.setattr(host, "_subscription_quotas", lambda: {"claude-code": {
+        "source": "official", "observed_at": observed_at,
+        "windows": [{"window": w, "used_percent": 10, "resets_at": observed_at + 3600}
+                    for w in ("five_hour", "weekly")]}})
+    host._prepare_task_quota(task)
+    control.claim_task(window_id=goal.window_id, task_id=task.id, owner="fixture", lease_ms=60_000)
+    reason = "predicted_insufficient"
+
+    def quota(_binding, *, task_specific=False):
+        if reason == "predicted_insufficient" and task_specific:
+            return {"decision": "ok", "reason": "no_signal"}
+        return {"decision": "switch", "reason": reason}
+
+    resolution = SimpleNamespace(auth_method="external_cli_session", external_session_status="available")
+    monkeypatch.setattr(host, "_quota_check", quota)
+    monkeypatch.setattr(host, "_refresh_external_session_auth", lambda *a: None)
+    monkeypatch.setattr(BindingResolver, "resolve", lambda *a, **kw: resolution)
+    resolver = host._binding_resolver_factory("http://127.0.0.1:1")
+    assert resolver.resolve_task(task, task_executor="claude_code") is resolution
+    with pytest.raises(BindingResolutionError, match="QUOTA_WAIT:predicted_insufficient"):
+        resolver.resolve("strong", task_executor="claude_code")
+    reason = "observed_exhausted"
+    with pytest.raises(BindingResolutionError, match="quota_exhausted:observed_exhausted"):
+        resolver.resolve_task(task, task_executor="claude_code")
+
+
 # --- #1260: Magpie subscription windows feed the guard ---
 
 
