@@ -346,7 +346,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                  pool_limits: Mapping[str, Mapping[str, Any]] | None = None,
                  rpm_by_pool: Mapping[str, int] | None = None,
                  tpm_by_pool: Mapping[str, int] | None = None,
-                 quota_held_binding: str = "") -> dict[str, Any]:
+                 quota_held_binding: str = "", quota_preferred_tier: int = 0) -> dict[str, Any]:
     """Pick from public binding metadata and precomputed quota observations.
 
     Scores prefer known availability/readiness, then quota, cost, success and speed.
@@ -494,8 +494,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             reason = "availability:no_credits"
         elif quota.get("reason") == "account_quarantined":
             reason = "account_quarantined"
-        elif (quota.get("reason") in CONFIRMED_EXHAUSTION_REASONS | {"quota_capacity"}
-              or (not admission and quota.get("reason") == "predicted_insufficient")):
+        elif quota.get("reason") in CONFIRMED_EXHAUSTION_REASONS | {"predicted_insufficient", "quota_capacity"}:
             reason = "quota_exhausted"
         elif quota_held_binding and admission.get("decision") == "quota_wait":
             reason = "quota_capacity"
@@ -680,8 +679,9 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         raise error
     has_held_qualifying = any(c["tier"] >= difficulty and (c.get("quota_admission") or {}).get("decision") == "quota_wait"
                              for c in ranked)
-    if any(c["tier"] >= difficulty and c["liveness_rank"] == LIVENESS_CLEAN
-           and (c.get("quota_admission") or {}).get("decision") != "quota_wait" for c in ranked):
+    if has_held_qualifying and not failed_model and not stall_tier and not refused_models and any(
+            c["tier"] >= difficulty and c["liveness_rank"] == LIVENESS_CLEAN
+            and (c.get("quota_admission") or {}).get("decision") != "quota_wait" for c in ranked):
         # Keep an explicit pin. An unpinned task can queue on its qualified held
         # binding when every qualifying option is held, and dispatch checks again.
         for candidate in tuple(ranked):
@@ -737,6 +737,12 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
     pool = [c for c in ranked if c["tier"] >= difficulty] if strict_floor else ranked
     if not pool:
         raise ModelSelectionError("review_not_independent", excluded=excluded)
+    if quota_held_binding and quota_preferred_tier and not pinned:
+        # #1313 D: prefer an equal or stronger route when it can dispatch. The
+        # task floor still admits a lower-tier route when no such route is ready.
+        preferred = [c for c in pool if c["tier"] >= quota_preferred_tier
+                     and c["availability_rank"] == 0 and c["liveness_rank"] == LIVENESS_CLEAN]
+        pool = preferred or pool
     if refused_models:
         pool = sorted(pool, key=lambda c: (c["availability_rank"], c["refusal_risk"], *c["score"], c["binding_id"]))
         pinned = None  # a refusal never sends the task back to its pinned author

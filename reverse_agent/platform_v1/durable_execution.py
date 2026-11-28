@@ -2520,7 +2520,7 @@ class DurableExecutionService:
         if getattr(task, "executor_kind", "") in {"codex", "claude_code"}:
             from .codex_executor import codex_executor_kwargs
             native = codex_executor_kwargs(task, binding_resolver=self.binding_resolver, artifact_input=artifact_input,
-                                           kind=task.executor_kind)
+                                           kind=task.executor_kind, use_reservation=True)
             _require_native_owner_execution_binding(self.store, task, native["binding_resolution"])
             if getattr(native.get("binding_resolution"), "relay_required", False) and self.lease_provider is not None:
                 native["lease_provider"] = self.lease_provider  # API-key model inside Claude Code

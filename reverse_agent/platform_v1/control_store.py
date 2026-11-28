@@ -2501,6 +2501,7 @@ class PlatformControlStore:
         owner: str,
         lease_ms: int,
         feedback_identity: Mapping[str, str] | None = None,
+        expected_binding: str | None = None,
     ) -> tuple[int, AutonomousWindowRecord]:
         with self._lock:
             return self._claim_task_locked(
@@ -2509,6 +2510,7 @@ class PlatformControlStore:
                 owner=owner,
                 lease_ms=lease_ms,
                 feedback_identity=feedback_identity,
+                expected_binding=expected_binding,
             )
 
     def _claim_task_locked(
@@ -2519,6 +2521,7 @@ class PlatformControlStore:
         owner: str,
         lease_ms: int,
         feedback_identity: Mapping[str, str] | None = None,
+        expected_binding: str | None = None,
     ) -> tuple[int, AutonomousWindowRecord]:
         now_ms = _utc_now_ms()
         cur = self._conn.cursor()
@@ -2552,6 +2555,10 @@ class PlatformControlStore:
             task = cur.execute("SELECT status, binding_ref FROM tasks WHERE id = ?", (task_id,)).fetchone()
             if task is None:
                 raise TaskStoreError("task_not_claimable")
+            if expected_binding is not None and task["binding_ref"] != expected_binding:
+                # A quota reroute may have replaced this binding and cleared its
+                # prepared input while this coordinator was about to claim it.
+                raise TaskStoreError("quota_reservation_identity_changed")
             if feedback_identity is not None:
                 from ..model_access.contracts import _account_ref
                 try:

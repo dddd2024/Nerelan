@@ -192,7 +192,7 @@ class CodexPreparedContext:
     executor_kind: str = "codex"
 
 
-def codex_executor_kwargs(task, *, binding_resolver, artifact_input=None, kind="codex"):
+def codex_executor_kwargs(task, *, binding_resolver, artifact_input=None, kind="codex", use_reservation=False):
     """Resolve public saved binding and trusted source; no model/profile fallback."""
     from .binding_resolver import BindingResolver
     from .repository_workspace import resolve_repository_workspace
@@ -204,7 +204,9 @@ def codex_executor_kwargs(task, *, binding_resolver, artifact_input=None, kind="
         repository, branch = task.repository, task.branch
     if not binding_ref:
         raise ExecutorRuntimeError(f"{kind}_binding_required")
-    resolved = (binding_resolver or BindingResolver()).resolve(binding_ref, task_executor=kind)
+    resolver = binding_resolver or BindingResolver()
+    resolve_task = getattr(resolver, "resolve_task", None) if use_reservation else None
+    resolved = resolve_task(task, task_executor=kind) if callable(resolve_task) else resolver.resolve(binding_ref, task_executor=kind)
     source = resolve_repository_workspace(repository)
     base = artifact_input["producer"]["commit"] if artifact_input is not None else branch
     if not isinstance(base, str) or not re.fullmatch(r"[0-9a-f]{40}", base):

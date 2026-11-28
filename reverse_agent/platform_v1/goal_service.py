@@ -1255,8 +1255,10 @@ class GoalService:
                              and event.metadata.get("binding_ref") == task.binding_ref), {})
             if not selected:
                 continue
+            held_tier = selected.get("tier")
             try:
                 decision = self.task_resolver(plan_task, goal=goal, quota_held_binding=task.binding_ref,
+                                              quota_preferred_tier=held_tier if type(held_tier) is int else 0,
                                               probe_availability=False, **self._review_authors(plan_task, goal, planned))
             except TaskStoreError:
                 continue
@@ -1292,7 +1294,7 @@ class GoalService:
                     task.id, expected_binding=task.binding_ref, binding_ref=decision["binding_ref"],
                     executor_kind=decision["executor_kind"], branch=base if native and base else "",
                     selection=dict(decision, reroute_reason="quota_hold", from_binding=task.binding_ref,
-                                   held_tier=selected.get("tier"), required_tier=plan_task.difficulty, hold=hold)):
+                                   held_tier=held_tier, required_tier=plan_task.difficulty, hold=hold)):
                 continue
             moved.append({"plan_task_id": plan_task.id, "task_id": task.id, "reason": "quota_hold_reroute",
                           "from_binding": task.binding_ref, "to_binding": decision["binding_ref"]})

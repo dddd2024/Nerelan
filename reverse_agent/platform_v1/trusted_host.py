@@ -825,7 +825,8 @@ class CombinedTrustedHost:
                             author_models: Sequence[str] = (), author_executors: Sequence[str] = (), failed_tier: int | None = None,
                             refused_models: Sequence[str] = (), forecast: bool = False, quota_evidence: Mapping[str, Any] | None = None,
                             probe_availability: bool = True, avoid_bindings: Sequence[str] = (),
-                            stall_tier: int | None = None, quota_held_binding: str = "") -> dict[str, Any]:
+                            stall_tier: int | None = None, quota_held_binding: str = "",
+                            quota_preferred_tier: int = 0) -> dict[str, Any]:
         """Route across the entire runnable catalog, including discovered connections."""
         if (task.kind == "review" or task.agent_role == "reviewer") and task.artifact_input is None:
             raise TaskStoreError("model_review_artifact_input_required")
@@ -905,7 +906,6 @@ class CombinedTrustedHost:
             native = connection.get("auth_method") == "external_cli_session"
             # Magpie's time-limited allowances and expiring credits (#1471) adjust the class.
             cost_class, resources = effective_cost(binding, connection, owner, allowances, now=allowance_now)
-            quota = None if forecast else self._quota_check(binding)
             admission = None
             if (not forecast and native and connection.get("executor_provider_id") in NATIVE_CLI_PROVIDERS
                     and callable(reservations) and binding["binding_id"] in runnable):
@@ -917,6 +917,8 @@ class CombinedTrustedHost:
                     records = estimation_records(self._task_store)
                 need = self._native_quota_need(binding, task, evidence, records, pace)
                 admission = quota_reservation.admission(evidence, quota_reservation.cap_need_to_window(need), outstanding)
+            quota = None if forecast else (self._quota_check(binding, task_specific=True) if admission
+                                           else self._quota_check(binding))
             # A gateway model naming a paced upstream ("claude/...") spends that account's
             # weekly allowance, so it is paced against that account's own windows.
             namespace = binding["model_id"].split("/", 1)[0] if "/" in binding["model_id"] else ""
@@ -1050,7 +1052,8 @@ class CombinedTrustedHost:
                                 in_flight_by_upstream=in_flight_by_upstream,
                                 pool_limits=pool_limits,
                                 rpm_by_pool=rpm_by_pool,
-                                tpm_by_pool=tpm_by_pool, quota_held_binding=quota_held_binding)
+                                tpm_by_pool=tpm_by_pool, quota_held_binding=quota_held_binding,
+                                quota_preferred_tier=quota_preferred_tier)
             decision["context_packet_reservation"] = 16384 + 256
             if window_pool is not None:
                 decision["pool_source"] = window_pool["pool_source"]
@@ -1830,7 +1833,7 @@ class CombinedTrustedHost:
         if pool_key and ((isinstance(rpm_cap, int) and rpm_cap > 0) or (isinstance(tpm_cap, int) and tpm_cap > 0)):
             self._record_live_pool_dispatch(pool_key)
 
-    def _quota_check(self, binding: Mapping[str, Any]) -> dict[str, Any] | None:
+    def _quota_check(self, binding: Mapping[str, Any], *, task_specific: bool = False) -> dict[str, Any] | None:
         from .quota_guard import check, typical_need
         from .usage_ledger import task_token_records
         try:
@@ -1847,8 +1850,10 @@ class CombinedTrustedHost:
                 # The account itself refused a recent run: exhausted until it resets, whatever the estimate says.
                 return {"decision": "switch", "reason": "limit_hit", "window": None,
                         "until": datetime.fromtimestamp(until, timezone.utc).isoformat().replace("+00:00", "Z")}
-            records = _cached(self, "_task_records_cache", lambda: task_token_records(self._task_store))
-            need, source = typical_need(records, binding, self._store.list_bindings_public())
+            need, source = None, "task_admission"
+            if not task_specific:
+                records = _cached(self, "_task_records_cache", lambda: task_token_records(self._task_store))
+                need, source = typical_need(records, binding, self._store.list_bindings_public())
             verdict = check(connection, {connection.get("executor_provider_id"): self._account_quota(connection)}, need)
             verdict = verdict | {"need_source": source} if verdict else None
             if verdict is None or verdict.get("decision") in {"ok", "warn"}:
@@ -2294,7 +2299,10 @@ class CombinedTrustedHost:
         delegate = BindingResolver(base_url=base_url)
 
         class FreshExternalSessionBindingResolver:
-            def resolve(self, binding_ref: str, *, task_executor: str) -> Any:
+            def resolve_task(self, task: Any, *, task_executor: str) -> Any:
+                return self.resolve(task.binding_ref, task_executor=task_executor, task_id=task.id)
+
+            def resolve(self, binding_ref: str, *, task_executor: str, task_id: str = "") -> Any:
                 binding_info = host._store.get_binding_public(binding_ref)
                 if not host._store.magpie_connection_runnable(binding_info["connection_id"]):
                     raise BindingResolutionError("magpie_unreachable")
@@ -2303,8 +2311,14 @@ class CombinedTrustedHost:
                     raise BindingResolutionError(BLOCKED)
                 host._routing_refresh_quota_for_signal()
                 snapshot = host._store.resolve_execution_snapshot(binding_ref)
-                binding = next((b for b in host._store.list_bindings_public() if b["binding_id"] == binding_ref), None)
-                verdict = host._quota_check(binding) if binding else None
+                reservation = (host._task_store.active_quota_reservation(task_id)
+                               if task_id and snapshot.auth_method == "external_cli_session" else None)
+                task_specific = False
+                if reservation and reservation["binding_ref"] == binding_ref and reservation["windows"]:
+                    connection = host._store.get_connection_public(snapshot.connection_id)
+                    task_specific = reservation["account_ref"] == (connection.get("account_ref") or connection["connection_id"])
+                verdict = (host._quota_check(binding_info, task_specific=True) if task_specific
+                           else host._quota_check(binding_info))
                 from .quota_guard import CONFIRMED_EXHAUSTION_REASONS
                 if verdict and verdict.get("decision") == "switch" and verdict.get("reason") in CONFIRMED_EXHAUSTION_REASONS | {"predicted_insufficient", "quota_capacity"}:
                     # Explicit/single-Goal binding routes have the same hard

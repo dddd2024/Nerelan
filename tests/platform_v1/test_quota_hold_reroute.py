@@ -40,7 +40,7 @@ def test_held_task_moves_once_to_a_model_meeting_the_task_floor(monkeypatch):
     goals.task_resolver = _resolver(ALTERNATIVE, calls)
     [moved] = goals.escalate_failed_tasks(goal.id)
     assert moved["reason"] == "quota_hold_reroute" and moved["to_binding"] == "kimi-bind"
-    assert calls == [("T001", "codex-bind", 3, {"probe_availability": False})]
+    assert calls == [("T001", "codex-bind", 3, {"probe_availability": False, "quota_preferred_tier": 5})]
     task = store.get_task(task_id)
     assert (task.binding_ref, task.executor_kind, task.status) == ("kimi-bind", "opencode", "QUEUED")
     assert control.quota_hold(task_id) is None  # stale admission for the old binding is gone
@@ -106,8 +106,12 @@ def test_replay_1805_aligns_task_traits_claim_and_quota_reroute(monkeypatch, tmp
     assert store.get_task(task.id).status == "QUEUED"
     assert control.quota_hold(task.id) is None
     with pytest.raises(TaskStoreError, match="quota_reservation_identity_changed"):
+        control.claim_task(window_id=goal.window_id, task_id=task.id, owner="fixture", lease_ms=60_000,
+                           expected_binding=task.binding_ref)  # delayed claim of the previous binding
+    with pytest.raises(TaskStoreError, match="quota_reservation_identity_changed"):
         host._prepare_task_quota(task)  # delayed preparation of the previous binding
     assert not control.quota_reservations()
+    assert store._conn.execute("SELECT COUNT(*) FROM platform_coordinator_claims WHERE task_id=?", (task.id,)).fetchone()[0] == 0
 
 
 def test_started_or_unheld_or_unselected_tasks_are_never_moved(monkeypatch):
