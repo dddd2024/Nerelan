@@ -469,3 +469,18 @@ def test_host_pool_refusal_records_a_hold_and_counts_rate_only_after_claim(monke
         dispatch_settler=lambda tid, claimed: settled.append((tid, claimed)))
     assert coordinator.tick() == 0
     assert settled == [(task_id, False)]
+
+
+def test_coordinator_settles_a_committed_claim_as_claimed(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+    from reverse_agent.platform_v1.unattended_coordinator import UnattendedCoordinator
+    store, control, goals, goal = _launched(monkeypatch)
+    task_id = _link(control, goal.id, "T001")["task_id"]
+    settled = []
+    coordinator = UnattendedCoordinator(store=store, control_store=control,
+        autonomy=SimpleNamespace(authorize=lambda **kwargs: True), router=SimpleNamespace(),
+        workspace_root=tmp_path, quota_preparer=lambda task: None, quota_rerouter=lambda goal_id: None,
+        dispatch_settler=lambda tid, claimed: settled.append((tid, claimed)))
+    monkeypatch.setattr(coordinator, "_begin_dispatch", lambda **kwargs: False)  # stop before any executor
+    coordinator.tick()
+    assert settled == [(task_id, True)]

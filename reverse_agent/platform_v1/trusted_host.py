@@ -1721,6 +1721,8 @@ class CombinedTrustedHost:
         """Account-bound preparation outside the coordinator's claim transaction."""
         from . import quota_reservation
         from .usage_ledger import estimation_records
+        # A dispatch left pending by an earlier preparation that never settled is void.
+        self.__dict__.setdefault("_pending_pool_dispatches", {}).pop(task.id, None)
         resume_route = None
         if getattr(task, "status", "") == "QUOTA_WAIT":
             from .goal_service import GoalService
