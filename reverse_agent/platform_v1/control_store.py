@@ -46,6 +46,10 @@ USAGE_ENFORCEMENT_CLASSES = frozenset(
 PROVIDER_QUOTA_STATES = frozenset({"NOT_CONFIGURED", "OBSERVED", "UNKNOWN"})
 # Tasks a window rebind may move (#1277); terminal tasks keep their original window.
 REBINDABLE_TASK_STATES = frozenset({"QUEUED", "INTERRUPTED", "QUOTA_WAIT"})
+# Shared-pool refusals before claim (#1533): forgotten when not seen again for this long.
+DISPATCH_HOLD_TTL_SECONDS = 120.0
+DISPATCH_HOLD_LIMIT = 1000
+POOL_RATE_WINDOW_SECONDS = 60.0
 # Owner-confirmed multi-Goal windows (owner_window.py, Owner decision 2026-11-07).
 # Hard ceilings the store enforces whatever the caller asks for.
 OWNER_WINDOW_MODE = "OWNER_WINDOW"
@@ -2379,6 +2383,7 @@ class PlatformControlStore:
             if moved.rowcount != 1:
                 return False
             self._conn.execute("DELETE FROM platform_quota_admissions WHERE task_id=?", (task_id,))
+            self.__dict__.get("_dispatch_holds", {}).pop(task_id, None)
             self.task_store._append_event(task_id=task_id, event_type="MODEL_SELECTED", title="Model selected",
                 description=f"{binding_ref}: quota_hold_reroute from {expected_binding}", metadata=selection)
             return True
@@ -2394,7 +2399,40 @@ class PlatformControlStore:
         with self._lock:
             row = self._conn.execute("SELECT verdict_json FROM platform_quota_admissions WHERE task_id=?", (task_id,)).fetchone()
             verdict = json.loads(row["verdict_json"]) if row else {}
-            return verdict if verdict.get("decision") == "quota_wait" else None
+            if verdict.get("decision") == "quota_wait":
+                return verdict
+            return self._dispatch_hold_locked(task_id)
+
+    def note_dispatch_hold(self, task_id: str, *, binding_ref: str, verdict: Mapping[str, Any],
+                           now: float | None = None) -> None:
+        """Remember a shared-pool refusal made before any claim or admission row (#1533).
+
+        It lives in this process only: the pool refuses again on the next tick, so a
+        restart loses nothing. A rate hold keeps the time it was first seen while the
+        same binding keeps hitting it.
+        """
+        at = time.monotonic() if now is None else float(now)
+        holds = self.__dict__.setdefault("_dispatch_holds", {})
+        with self._lock:
+            prior = holds.get(task_id)
+            first = (prior["first_seen"] if prior and prior["binding_ref"] == binding_ref
+                     and prior["verdict"].get("reason") == verdict.get("reason") else at)
+            holds[task_id] = {"binding_ref": binding_ref, "verdict": dict(verdict), "first_seen": first, "seen": at}
+            if len(holds) > DISPATCH_HOLD_LIMIT:
+                del holds[next(iter(holds))]
+
+    def _dispatch_hold_locked(self, task_id: str, now: float | None = None) -> dict[str, Any] | None:
+        hold = self.__dict__.get("_dispatch_holds", {}).get(task_id)
+        if hold is None:
+            return None
+        at = time.monotonic() if now is None else float(now)
+        row = self._conn.execute("SELECT binding_ref FROM tasks WHERE id=?", (task_id,)).fetchone()
+        if row is None or row["binding_ref"] != hold["binding_ref"] or at - hold["seen"] > DISPATCH_HOLD_TTL_SECONDS:
+            return None  # moved, or the pool stopped refusing it
+        held_for = at - hold["first_seen"]
+        if hold["verdict"].get("reason") in {"pool_rpm_limit", "pool_tpm_limit"} and held_for < POOL_RATE_WINDOW_SECONDS:
+            return None  # a rate hold shorter than its own window says nothing about the pool's capacity
+        return dict(hold["verdict"], held_seconds=round(held_for, 1))
 
     def quota_reservations(self, account_ref: str = "", *, exclude_active_for: str = "") -> list[dict[str, Any]]:
         """Account reservations used by both quota placement and the claim transaction."""
