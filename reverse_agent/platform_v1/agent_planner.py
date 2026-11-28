@@ -474,6 +474,7 @@ class AgentPlanner:
                 self._goals.plan(
                     goal.id,
                     expected_revision=goal.revision,
+                    expected_artifact_digest=goal.artifact_digest,
                     tasks=fast_plan["tasks"],
                     acceptance_criteria=fast_plan["acceptance_criteria"],
                 )
@@ -553,7 +554,8 @@ class AgentPlanner:
                     goal.revision, goal.status, goal.artifact_digest):
                 raise TaskStoreError("goal_changed_during_planning")
             self._goals.plan(goal.id, expected_revision=goal.revision, tasks=plan["tasks"],
-                             acceptance_criteria=plan["acceptance_criteria"])
+                             acceptance_criteria=plan["acceptance_criteria"],
+                             expected_artifact_digest=goal.artifact_digest)
             outcome, error = "PLANNED", ""
         except ExecutorRuntimeError as exc:
             outcome, error = "FAILED", f"agent_planner_error:{_runtime_error_code(exc)}"
@@ -612,6 +614,11 @@ def build_fast_path_plan(
     objective = str(getattr(goal, "objective", "") or title).strip()
     kind = str(fast_path_spec.get("kind") or "code")
     criteria = [str(c) for c in (fast_path_spec.get("acceptance_criteria") or (f"{title} passes host functional checks and independent review",))]
+    review_difficulty, _ = task_traits({"agent_role": "reviewer"})
+    for task in getattr(goal, "tasks", ()):
+        difficulty, task_kind = task_traits(task)
+        if task_kind == "review" or task.get("agent_role") == "reviewer":
+            review_difficulty = max(review_difficulty, difficulty)
     return {
         "plan_source": "fast_path_deterministic",
         "fast_path": eligibility,
@@ -630,7 +637,8 @@ def build_fast_path_plan(
                 "id": "T002",
                 "title": f"Review {title}",
                 "instruction": "Perform independent review of T001 against the repository diff and host functional check evidence.",
-                "difficulty": min(3, max(1, int(raw_diff))),
+                "agent_role": "reviewer",
+                "difficulty": review_difficulty,
                 "kind": "review",
                 "dependencies": ["T001"],
                 "artifact_input": {"plan_task_id": "T001"},

@@ -590,6 +590,7 @@ def test_repository_preparation_run_git_closes_stdin_with_devnull(tmp_path, monk
 
 
 def test_deterministic_fast_path_plans_scoped_r1_without_runner_and_reports_confirmed_zero(tmp_path):
+    from dataclasses import replace
     from reverse_agent.platform_v1.agent_planner import build_fast_path_plan
 
     goals, goal = _goals()
@@ -603,15 +604,42 @@ def test_deterministic_fast_path_plans_scoped_r1_without_runner_and_reports_conf
     assert direct is not None and direct["plan_source"] == "fast_path_deterministic"
     assert [t["id"] for t in direct["tasks"]] == ["T001", "T002"]
     assert direct["tasks"][1]["kind"] == "review" and direct["tasks"][1]["dependencies"] == ["T001"]
+    assert direct["tasks"][0]["difficulty"] == 2
+    assert direct["tasks"][1]["difficulty"] == 4
+    stronger_review = replace(goal, tasks=({"kind": "review", "difficulty": 5},))
+    assert build_fast_path_plan(stronger_review, fast_path_spec=spec)["tasks"][1]["difficulty"] == 5
 
     status = planner.start(goal.id, expected_revision=1, background=False, fast_path_spec=spec)
     assert status["status"] == "PLANNED"
     assert status["planner"] == {"executor_kind": "host_fast_path", "binding_ref": "deterministic"}
     assert status["usage_status"] == "confirmed_zero"
     assert status["token_usage"] == {"input_tokens": 0, "output_tokens": 0}
+    assert goals.control_store.get_goal(goal.id).tasks[1]["difficulty"] == 4
     assert not calls
 
     # Ineligible (R2 path, tricky dot normalization, or high difficulty) falls back cleanly to None.
     for blocked in ("AGENTS.md", "..AGENTS.md", "..docs/agents/x.md", "..requirements.txt", "/AGENTS.md", "."):
         assert build_fast_path_plan(goal, fast_path_spec={**spec, "allowed_paths": [blocked]}) is None
     assert build_fast_path_plan(goal, fast_path_spec={**spec, "difficulty": 4}) is None
+
+
+def test_fast_path_cannot_overwrite_first_plan_saved_at_the_same_revision(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1.agent_planner import build_fast_path_plan
+
+    goals, goal = _goals()
+    planner, _ = _planner(tmp_path, goals, lambda **_: pytest.fail("fast path must not invoke LLM runner"))
+    scope = {"difficulty": 3, "allowed_paths": ["tests/test_x.py"],
+             "validation_checks": [{"profile_id": "python_pytest", "working_directory": "."}]}
+    draft_plan = build_fast_path_plan(goal, fast_path_spec=scope)
+    implement, review = draft_plan["tasks"]
+    save = goals.plan
+
+    def save_with_interleaving(goal_id, **kwargs):
+        first = save(goal_id, expected_revision=1, tasks=[implement, {**review, "difficulty": 5}])
+        assert first.goal.revision == 1 and first.goal.tasks[1]["difficulty"] == 5
+        return save(goal_id, **kwargs)
+
+    monkeypatch.setattr(goals, "plan", save_with_interleaving)
+    with pytest.raises(TaskStoreError, match="goal_changed_during_planning"):
+        planner.start(goal.id, expected_revision=1, background=False, fast_path_spec=scope)
+    assert goals.control_store.get_goal(goal.id).tasks[1]["difficulty"] == 5

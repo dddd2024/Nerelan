@@ -26,6 +26,7 @@ from typing import Any
 
 from .artifact_handoff import published_plan_tasks
 from .control_store import OWNER_LANDING_CAPABILITY, OWNER_WINDOW_CAPABILITIES, OWNER_WINDOW_MAX_GOALS
+from .model_router import task_traits
 from .run_store import TaskStoreError
 
 MAX_TEXT_CHARS = 2_000
@@ -43,7 +44,7 @@ DEFAULT_PRESET = "continuous"
 # Owner decision 2026-11-10 (D4): review goes to a stronger model than ordinary
 # implementation. The router admits only reviewers whose capability tier is at least
 # the task's difficulty, so the template asks for one tier above the implement task.
-REVIEW_DIFFICULTY = 4
+REVIEW_DIFFICULTY, _ = task_traits({"agent_role": "reviewer"})
 _PRESET_KEYS = ("hours", "max_concurrent", "max_retries", "max_token_units")
 
 _ISSUE_URL = re.compile(r"https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/issues/(\d{1,7})\b")
