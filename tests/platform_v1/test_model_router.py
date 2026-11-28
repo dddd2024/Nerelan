@@ -65,6 +65,25 @@ def test_cheapest_qualifying_and_underpowered():
     json.dumps(result, allow_nan=False)
 
 
+def test_quota_hold_prefers_same_tier_only_when_it_can_run():
+    hold = {"decision": "quota_wait", "reason": "quota_capacity", "state": "UNKNOWN"}
+    initial = candidate("initial", "opus", "subscription", quota_admission=hold)
+    peer = candidate("peer", "gpt-6-sol", "subscription", quota_admission={"decision": "ok"})
+    qualified = candidate("medium", "kimi-k3")
+    weaker = candidate("weak", "flash-lite")
+    options = {"difficulty": 3, "quota_held_binding": "initial", "quota_preferred_tier": 5}
+    assert choose([initial, peer, qualified, weaker], **options)["binding_ref"] == "peer"
+    assert choose([initial, dict(peer, quota_admission=hold), qualified, weaker], **options)["binding_ref"] == "medium"
+
+
+def test_quota_placement_does_not_redefine_capability_retry_order():
+    blocked = {"decision": "quota_wait", "reason": "quota_capacity", "state": "UNKNOWN"}
+    candidates = [candidate("waiting", "opus", "subscription", quota_admission=blocked),
+                  candidate("ready", "glm-5.3")]
+    result = choose(candidates, difficulty=3, failed_model="kimi-k3", failed_tier=4)
+    assert result["binding_ref"] == "waiting" and result["tier"] == 5
+
+
 def test_success_then_speed_break_ties_and_quota_headroom_scales_cost():
     pool = [candidate("a", "opus", "subscription"), candidate("b", "sonnet", "subscription")]
     profiles = {"a": {"success_rate": .8, "median_ok_seconds": 10},
@@ -231,7 +250,7 @@ def fixture_host(monkeypatch, tmp_path):
     (tmp_path / "model_capabilities.json").write_text(json.dumps({"version": 1, "models": FIXTURE_TABLE}))
     monkeypatch.setattr(host, "_routing_availability", lambda *args, **kwargs: {"state": "AVAILABLE", "reason": "fixture"})
     monkeypatch.setattr(host, "_runnable_bindings", lambda: {"cheap", "mid", "strong"})
-    monkeypatch.setattr(host, "_quota_check", lambda binding: None)
+    monkeypatch.setattr(host, "_quota_check", lambda binding, **kwargs: None)
     monkeypatch.setattr(host, "_subscription_quotas", lambda: {})
     def measured_profiles():
         return {row["binding_id"]: {"task_buckets": {

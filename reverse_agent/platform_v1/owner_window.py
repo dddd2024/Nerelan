@@ -285,6 +285,9 @@ class OwnerWindowAdmission:
                     continue
                 model = decision.get("model_id") or pool[binding].get("model_id", "?")
                 why = decision.get("reason", "routed") if decisions.get(seq) is not None else "pinned"
+                quota = decision.get("quota_admission") or {}
+                if quota.get("decision") == "quota_wait":
+                    why = f"{why}, quota_wait ({quota['state']})"
                 lines.append(f"- {snapshot['id']} {item.id}: {binding} ({model}, {why})")
         if problems:
             raise TaskStoreError("owner_window_task_unroutable:" + "; ".join(problems)[:2000])
@@ -554,7 +557,7 @@ class OwnerWindowAdmission:
                 f"{len(scope['approved_pool'])} bindings offered, {len(scope['pool_skipped'])} not offered")
             try:
                 result["preview"] = self._route_preview(scope)
-                add("routing", "", f"{len(result['preview'])} tasks placed")
+                add("routing", "", f"{len(result['preview'])} tasks with routing plans")
             except TaskStoreError as exc:
                 add("routing", str(exc))
             env = scope["envelope"]

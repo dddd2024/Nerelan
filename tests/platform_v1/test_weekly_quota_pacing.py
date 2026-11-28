@@ -703,6 +703,8 @@ def test_an_unreadable_policy_releases_nothing_and_does_not_raise(monkeypatch):
 
     class Host:
         _prepare_task_quota = vars(owner)["_prepare_task_quota"]
+        _native_quota_evidence = vars(owner)["_native_quota_evidence"]
+        _native_quota_need = vars(owner)["_native_quota_need"]
         _store = SimpleNamespace(
             list_bindings_public=lambda: [{"binding_id": "b", "connection_id": "c"}],
             get_connection_public=lambda _id: {"connection_id": "c", "account_ref": "a",
