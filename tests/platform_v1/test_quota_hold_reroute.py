@@ -484,3 +484,29 @@ def test_coordinator_settles_a_committed_claim_as_claimed(monkeypatch, tmp_path)
     monkeypatch.setattr(coordinator, "_begin_dispatch", lambda **kwargs: False)  # stop before any executor
     coordinator.tick()
     assert settled == [(task_id, True)]
+
+
+def _stalled_attempt(store, goals, monkeypatch, plan_task_id, binding):
+    stalled = store.create_task(title="earlier attempt", executor_kind="opencode", binding_ref=binding)
+    store._conn.execute("UPDATE tasks SET status='FAILED', failure_classification='executor_stalled' WHERE id=?", (stalled.id,))
+    store._conn.commit()
+    monkeypatch.setattr(goals, "_escalations", lambda goal_id: [
+        {"plan_task_id": plan_task_id, "from_task_id": stalled.id, "reason": "host_retry:executor_stalled:rerouted"}])
+
+
+def test_quota_reroute_never_returns_a_step_to_a_binding_it_stalled_on(monkeypatch):
+    # #1597 live, 2026-11-28 07:11Z: a held Opus attempt was quota-rerouted back onto the
+    # trae binding the same step had stalled on 15 min earlier, and stalled there again.
+    store, control, goals, goal = _launched(monkeypatch, role="coder")
+    task_id = _link(control, goal.id, "T001")["task_id"]
+    _hold(store, control, task_id, tier=5)
+    _stalled_attempt(store, goals, monkeypatch, "T001", "kimi-bind")
+    calls = []
+    goals.task_resolver = _resolver(ALTERNATIVE, calls)  # the router still offers the stalled one
+    assert goals.escalate_failed_tasks(goal.id) == ()
+    assert calls[0][3]["avoid_bindings"] == ("kimi-bind",) and calls[0][3]["stall_tier"] == 3
+    assert store.get_task(task_id).binding_ref == "codex-bind"
+    other = dict(ALTERNATIVE, binding_ref="glm-bind", model_id="glm-5.3")
+    goals.task_resolver = _resolver(other, [])
+    [moved] = goals.escalate_failed_tasks(goal.id)
+    assert moved["to_binding"] == "glm-bind"
