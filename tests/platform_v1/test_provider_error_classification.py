@@ -78,6 +78,14 @@ def _dummy_executor() -> OpenCodeExecutor:
             "auth_provider_route_failure",
         ),
         (
+            # #1597/#1584 live 2026-11-28: a one-api/new-api gateway answers an exhausted
+            # balance with 403; that is a quota answer, not an auth failure.
+            [{"type": "error", "error": {"name": "APIError", "data": {
+                "statusCode": 403, "message": "agnes: Failed to pre-consume quota, remaining: 0.016276, required: 0.020010",
+            }}}],
+            "quota_exhausted",
+        ),
+        (
             [{"type": "error", "error": {"name": "APIError", "data": {
                 "statusCode": 503, "message": "Service unavailable",
             }}}],
@@ -601,3 +609,16 @@ def test_a_refused_review_rests_the_binding_for_an_hour():
     assert not REVIEW_REFUSED_RE.search("MODEL_UNAVAILABLE:review_http_503")
     assert not REVIEW_REFUSED_RE.search("MODEL_UNAVAILABLE:model_not_found")
     assert REVIEW_REFUSED_TTL_SECONDS == 3600
+
+
+
+@pytest.mark.parametrize("status,message", [
+    (403, "Forbidden: no credit permission"),
+    (401, "Unauthorized; quota exhausted is not the cause"),
+    (403, "Forbidden"),
+])
+def test_a_401_or_403_stays_an_auth_failure_without_an_affirmative_balance_answer(status, message):
+    # Review of #1816: permission wording or a negated quota phrase is not a quota answer.
+    ex = _dummy_executor()
+    events = [{"type": "error", "error": {"name": "APIError", "data": {"statusCode": status, "message": message}}}]
+    assert ex._classify_exit(1, events) == "auth_provider_route_failure"

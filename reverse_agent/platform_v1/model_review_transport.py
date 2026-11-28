@@ -108,6 +108,8 @@ def group_member_served(selected, served, groups):
                 and model_identity(served, groups) == identity)
 
 
+_KNOWN_FINISH_REASONS = frozenset({"length", "content_filter", "tool_calls", "function_call"})
+
 def review(prompt, resolution, lease_provider, groups=None):
     validate_connection(resolution, lease_provider)
     lease = None
@@ -133,7 +135,7 @@ def review(prompt, resolution, lease_provider, groups=None):
             payload = chat(lease, {"model": model, "messages": [{"role": "user", "content": prompt}],
                 "stream": False, "max_tokens": 8192})
         if not isinstance(payload, dict):
-            raise TaskStoreError("model_review_invalid_output")
+            raise TaskStoreError("model_review_invalid_output:payload_not_object")
         actual = payload.get("model")
         if not isinstance(actual, str) or not actual.strip():
             raise TaskStoreError("review_not_independent")
@@ -142,19 +144,24 @@ def review(prompt, resolution, lease_provider, groups=None):
             raise TaskStoreError("review_not_independent")
         choices = payload.get("choices")
         if not isinstance(choices, list) or len(choices) != 1:
-            raise TaskStoreError("model_review_invalid_output")
+            raise TaskStoreError("model_review_invalid_output:choice_count")
         choice = choices[0]
         message = choice["message"]
-        if (choice.get("finish_reason") != "stop" or message.get("role") != "assistant"
+        if choice.get("finish_reason") != "stop":
+            # Allowlisted: a provider value never reaches the persisted detail.
+            raw = choice.get("finish_reason")
+            reason = raw if raw in _KNOWN_FINISH_REASONS else "other"
+            raise TaskStoreError("model_review_invalid_output:finish_reason_" + reason)
+        if (message.get("role") != "assistant"
                 or message.get("tool_calls") or message.get("function_call")
                 or payload.get("tool_calls") or payload.get("function_call")):
-            raise TaskStoreError("model_review_invalid_output")
+            raise TaskStoreError("model_review_invalid_output:not_plain_assistant_reply")
         from .model_review import parse_response
         text = message.get("content")
         parse_response(text)
         request_id = payload.get("id")
         if not isinstance(request_id, str) or not request_id.strip():
-            raise TaskStoreError("model_review_invalid_output")
+            raise TaskStoreError("model_review_invalid_output:request_id_missing")
         # A group's member echo is recorded as itself: the evidence names what served.
         return {"response": text, "actual_models": [served], "request_id": request_id,
                 "quota_observations": []}
@@ -171,7 +178,7 @@ def review(prompt, resolution, lease_provider, groups=None):
         reason = "timeout" if isinstance(exc.reason, TimeoutError) else "transport_error"
         raise TaskStoreError(reason) from exc
     except (ValueError, TypeError, KeyError, IndexError, AttributeError) as exc:
-        raise TaskStoreError("model_review_invalid_output") from exc
+        raise TaskStoreError("model_review_invalid_output:payload_malformed") from exc
     except Exception as exc:
         raise TaskStoreError("transport_error") from exc
     finally:
