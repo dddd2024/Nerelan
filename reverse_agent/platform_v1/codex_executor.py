@@ -349,18 +349,16 @@ class CodexExecutor:
                   "Do not commit, push, merge, access credentials, install dependencies, or bypass policy. "
                   "Report changes and checks truthfully; CLI success is not functional acceptance.\n"
                   + (language + "\n" if language else "") + "\n" + title)
-        from .context_builder import durable_context_packet_blob, executor_context
+        from .context_builder import durable_context_metadata, executor_context
         context = executor_context(store, task_id=task_id, workspace=prepared.worktree,
                                    expected_head=prepared.base_sha)
         prompt += context
         if hasattr(store, "quota_resume_context"):
             prompt += store.quota_resume_context(task_id)
         if context:
-            context_blob = durable_context_packet_blob(context)
             _emit(event_callback, task_id, {"type":"EXECUTOR_RUNNING", "title":"Durable context rebuilt",
                 "description":"Non-authoritative projection from current TaskStore and Git",
-                "metadata":{"context_packet_digest":hashlib.sha256(context_blob).hexdigest(),
-                            "context_packet_bytes":len(context_blob), "measured_context_packet_tokens":len(context.encode("utf-8")), "base_sha":prepared.base_sha}})
+                "metadata": durable_context_metadata(context, prepared.base_sha)})
         quota = store.native_quota(task_id, prepared) if hasattr(store, "native_quota") else None
         def progress(item):
             if quota is not None:
