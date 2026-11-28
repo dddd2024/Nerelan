@@ -247,7 +247,24 @@ def parse_response(text: str, *, normalize: bool = True) -> dict[str, Any]:
             )[:MAX_REVIEW_FINDINGS]]
         return {"verdict": result["verdict"], "findings": findings}
     except (ValueError, TypeError, KeyError, RecursionError) as exc:
-        raise TaskStoreError("model_review_invalid_output") from exc
+        # The sub-reason names why, so a repeated failure is diagnosable (#1533); the
+        # classification stays model_review_invalid_output.
+        raise TaskStoreError("model_review_invalid_output:" + _invalid_reason(text, exc)) from exc
+
+
+def _invalid_reason(text: Any, exc: BaseException) -> str:
+    if not isinstance(text, str):
+        return "response_not_text"
+    if len(text.encode()) > 256 * 1024:
+        return "response_too_large"
+    stripped = text.strip()
+    if not stripped:
+        return "response_empty"
+    if stripped.startswith("```"):
+        return "fenced_json"
+    if isinstance(exc, json.JSONDecodeError):
+        return "not_json"
+    return "schema_mismatch"
 
 
 def workspace_identity(root: Path) -> dict[str, Any]:

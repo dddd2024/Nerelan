@@ -359,3 +359,24 @@ def test_a_refused_review_settles_its_call_and_is_not_a_model_failure(toolless, 
     rows = s["store"]._conn.execute("SELECT state, result_state FROM durable_external_operations WHERE task_id = ?",
                                     (task.id,)).fetchall()
     assert [tuple(row) for row in rows] == [("RECONCILED", "failure")]
+
+
+@pytest.mark.parametrize("changes,detail", [
+    ({"id": ""}, "request_id_missing"),
+    ({"choices": []}, "choice_count"),
+    ({"choices": [{"finish_reason": "length", "message": {"role": "assistant", "content": ACCEPT}}]},
+     "finish_reason_length"),
+    ({"choices": [{"finish_reason": "stop", "message": {"role": "assistant", "content": "```json\n" + ACCEPT + "\n```"}}]},
+     "fenced_json"),
+    ({"choices": [{"finish_reason": "stop", "message": {"role": "assistant", "content": "Looks good to me."}}]},
+     "not_json"),
+    ({"choices": [{"finish_reason": "stop", "message": {"role": "assistant", "content": '{"verdict":"ACCEPT"}'}}]},
+     "schema_mismatch"),
+])
+def test_an_invalid_review_answer_names_why(monkeypatch, changes, detail):
+    # #1597 live 2026-11-28: three reviews in three minutes failed as model_review_invalid_output
+    # with nothing recorded about why. The class stays the same; the detail names the cause.
+    monkeypatch.setattr(transport, "_post", lambda *args: gateway_reply(**changes))
+    with pytest.raises(TaskStoreError) as error:
+        transport.review("prompt", gateway(), None)
+    assert str(error.value) == "model_review_invalid_output:" + detail

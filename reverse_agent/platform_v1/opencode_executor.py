@@ -3846,6 +3846,10 @@ def _classify_exit(
             if status == 402:
                 return "quota_exhausted"
             if status in (401, 403):
+                # One-api/new-api gateways answer an exhausted balance with 403 (#1533):
+                # a quota answer reroutes, an auth failure does not.
+                if _QUOTA_EXHAUSTED_RE.search(text):
+                    return "quota_exhausted"
                 return "auth_provider_route_failure"
             if status in (503, 529):
                 return "provider_overloaded"
@@ -3878,6 +3882,7 @@ _QUOTA_EXHAUSTED_RE = re.compile(
     r"\b(quota[_ -]*(?:exhausted|depleted|used[_ -]?up|fully[_ -]?consumed)|"
     r"code\s*quota[_ -]?exhausted|"
     r"insufficient[_ -]?quota|"
+    r"failed\s+to\s+pre-?consume\s+quota|"
     r"quota\s+has\s+been\s+exhausted|"
     r"quota\s+is\s+exhausted|"
     r"quota\s+was\s+exhausted|"
