@@ -951,7 +951,8 @@ def test_server_session_error_escalates_while_local_session_missing_stays_blocke
 
     [step] = service.escalate_failed_tasks(goal.id)
     assert step["reason"] == "failed:server_session_error"
-    assert calls == [{"failed_binding": task.binding_ref, "avoid_bindings": ()}]
+    # A channel fault (#1533): the faulted binding is avoided, not retried as a capability failure.
+    assert calls == [{"failed_binding": "", "avoid_bindings": (task.binding_ref,)}]
     retry = store.get_task(step["to_task_id"])
     assert retry.binding_ref == "other-upstream"
     assert control.get_goal(goal.id).status == "RUNNING"
