@@ -6,7 +6,9 @@ Covers Task 3C R2 v3 Segments C (lease + negative confinement) and D
 
 from __future__ import annotations
 
+import io
 import json
+from types import SimpleNamespace
 import threading
 from http.client import HTTPConnection
 from typing import Any
@@ -848,3 +850,102 @@ def test_stream_failure_tolerates_disconnected_child(headers_sent):
     handler.close_connection = False
     handler._end_failed_stream(headers_sent, anthropic=True)
     assert handler.close_connection is True
+
+
+# --- #1533: an upstream 429 is waited out before anything reaches the client -------------
+
+def _rate_limited(retry_after=None):
+    from email.message import Message
+    from urllib.error import HTTPError
+    headers = Message()
+    if retry_after is not None:
+        headers["Retry-After"] = str(retry_after)
+    return HTTPError("http://upstream", 429, "Too Many Requests", headers, io.BytesIO(b'{"error":"tpm"}'))
+
+
+@pytest.mark.parametrize("retry_after,expected_waits", [("7", [7.0]), (None, [20.0])])
+def test_relay_waits_out_one_rate_limit_then_returns_the_answer(monkeypatch, retry_after, expected_waits):
+    from reverse_agent.model_access import credential_relay as relay_module
+    answers = [_rate_limited(retry_after), "ok"]
+    def fake_urlopen(request, timeout):
+        answer = answers.pop(0)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+    monkeypatch.setattr(relay_module, "urlopen", fake_urlopen)
+    waits = []
+    made = []
+    result = relay_module._urlopen_waiting_out_rate_limits(lambda: made.append(1) or object(), 5.0,
+                                                          sleep=waits.append)
+    assert result == "ok" and waits == expected_waits and len(made) == 2  # a fresh request each try
+
+
+def test_relay_returns_the_429_past_its_wait_budget_or_retries(monkeypatch):
+    from urllib.error import HTTPError
+    from reverse_agent.model_access import credential_relay as relay_module
+    monkeypatch.setattr(relay_module, "urlopen", lambda request, timeout: (_ for _ in ()).throw(_rate_limited("90")))
+    waits = []
+    with pytest.raises(HTTPError) as error:  # longer than the budget: answered at once
+        relay_module._urlopen_waiting_out_rate_limits(object, 5.0, sleep=waits.append)
+    assert error.value.code == 429 and waits == []
+    monkeypatch.setattr(relay_module, "urlopen", lambda request, timeout: (_ for _ in ()).throw(_rate_limited("1")))
+    with pytest.raises(HTTPError):
+        relay_module._urlopen_waiting_out_rate_limits(object, 5.0, sleep=waits.append)
+    assert waits == [1.0] * relay_module.RATE_LIMIT_MAX_RETRIES
+
+
+def test_relay_never_waits_past_the_lease_or_on_other_errors(monkeypatch):
+    from email.message import Message
+    from urllib.error import HTTPError
+    from reverse_agent.model_access import credential_relay as relay_module
+    monkeypatch.setattr(relay_module, "urlopen", lambda request, timeout: (_ for _ in ()).throw(_rate_limited("1")))
+    lease = SimpleNamespace(expired=False)
+    def expire(seconds):
+        lease.expired = True
+    with pytest.raises(CredentialRelayError, match="lease_expired_during_rate_limit_wait"):
+        relay_module._urlopen_waiting_out_rate_limits(object, 5.0, active=lease, sleep=expire)
+    server_error = HTTPError("http://upstream", 500, "boom", Message(), io.BytesIO(b""))
+    monkeypatch.setattr(relay_module, "urlopen", lambda request, timeout: (_ for _ in ()).throw(server_error))
+    waits = []
+    with pytest.raises(HTTPError):
+        relay_module._urlopen_waiting_out_rate_limits(object, 5.0, sleep=waits.append)
+    assert waits == []
+
+
+def test_forward_to_upstream_relays_the_answer_after_a_real_429(manager: CredentialRelayManager) -> None:
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    calls = []
+
+    class FakeHandler(BaseHTTPRequestHandler):
+        def do_POST(self):  # noqa: N802
+            self.rfile.read(int(self.headers.get("Content-Length", "0")))
+            calls.append(1)
+            if len(calls) == 1:
+                body = b'{"error":"inference exceeds tpm/rpm limit"}'
+                self.send_response(429)
+                self.send_header("Retry-After", "0")
+            else:
+                body = b'{"choices":[]}'
+                self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, fmt, *args):  # noqa: N802
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), FakeHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        snap = _make_snapshot(base_url=f"http://127.0.0.1:{server.server_address[1]}")
+        lease = manager.create_lease(snap, relay_url="http://127.0.0.1:0")
+        active = manager._validate_lease_for_request(lease.lease_id, method="POST", path="/chat/completions",
+                                                     model="gpt-4o")
+        status, body, _ = forward_to_upstream(active, body=b"{}", timeout=5.0)
+        assert (status, body, len(calls)) == (200, b'{"choices":[]}', 2)
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)

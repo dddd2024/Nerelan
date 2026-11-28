@@ -347,17 +347,80 @@ class CredentialRelayManager:
 # Upstream relay
 # ---------------------------------------------------------------------------
 
+# An upstream 429 is a channel answer, not a model failure (#1533). Rate windows are
+# minute-scale (e.g. SenseNova "inference exceeds tpm/rpm limit"), while OpenCode ends the
+# whole attempt on a 429 it cannot retry long enough. Before any byte reaches the client
+# the relay waits what the upstream asks for, inside OpenCode's 120 s header timeout.
+RATE_LIMIT_MAX_RETRIES = 2
+RATE_LIMIT_WAIT_BUDGET_SECONDS = 60.0
+RATE_LIMIT_DEFAULT_WAIT_SECONDS = 20.0
+
+
+def _retry_after_seconds(headers: Any) -> float | None:
+    raw = headers.get("Retry-After") if headers is not None else None
+    if raw is None:
+        return None
+    raw = str(raw).strip()
+    try:
+        value = float(raw)
+    except ValueError:
+        from email.utils import parsedate_to_datetime
+        try:
+            when = parsedate_to_datetime(raw)
+        except (TypeError, ValueError):
+            return None
+        if when is None:
+            return None
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=timezone.utc)
+        value = (when - datetime.now(timezone.utc)).total_seconds()
+    return max(0.0, value) if math.isfinite(value) else None
+
+
+def _urlopen_waiting_out_rate_limits(make_request: Any, timeout: float, *, active: Any = None,
+                                     sleep: Any = time.sleep) -> Any:
+    """``urlopen`` that waits out an upstream 429 before anything is relayed.
+
+    The last 429 (or any other HTTP error) is raised as before. A wait never exceeds
+    the remaining budget nor outlives the lease.
+    """
+    spent = 0.0
+    for attempt in range(RATE_LIMIT_MAX_RETRIES + 1):
+        try:
+            return urlopen(make_request(), timeout=timeout)  # noqa: S310 - gated relay
+        except HTTPError as exc:
+            if exc.code != 429 or attempt == RATE_LIMIT_MAX_RETRIES:
+                raise
+            asked = _retry_after_seconds(exc.headers)
+            wait = RATE_LIMIT_DEFAULT_WAIT_SECONDS * (attempt + 1) if asked is None else asked
+            if spent + wait > RATE_LIMIT_WAIT_BUDGET_SECONDS or (active is not None and active.expired):
+                raise
+            exc.close()
+            sleep(wait)
+            spent += wait
+            if active is not None and active.expired:
+                raise CredentialRelayError("lease_expired_during_rate_limit_wait")
+    raise AssertionError("unreachable")
+
+
 def _http_roundtrip(
     url: str,
     method: str,
     body: bytes,
     headers: dict[str, str],
     timeout: float,
+    *,
+    wait_out_rate_limits: bool = False,
+    active: Any = None,
 ) -> tuple[int, bytes, dict[str, str]]:
-    req = Request(url, data=body, headers=headers, method=method)
-    req.full_url = url
+    def make_request() -> Request:
+        req = Request(url, data=body, headers=headers, method=method)
+        req.full_url = url
+        return req
     try:
-        with urlopen(req, timeout=timeout) as resp:  # noqa: S310 - gated relay
+        opened = (_urlopen_waiting_out_rate_limits(make_request, timeout, active=active) if wait_out_rate_limits
+                  else urlopen(make_request(), timeout=timeout))  # noqa: S310 - gated relay
+        with opened as resp:
             status = int(resp.status)
             resp_headers = {k.lower(): v for k, v in resp.getheaders()}
             data = resp.read(_MAX_BODY_BYTES)
@@ -404,7 +467,8 @@ def forward_to_upstream(
         "Content-Length": str(len(body)),
         "Accept": "application/json, text/event-stream",
     }
-    return _http_roundtrip(upstream_url, "POST", body, headers, timeout)
+    return _http_roundtrip(upstream_url, "POST", body, headers, timeout,
+                           wait_out_rate_limits=True, active=active)
 
 
 # ---------------------------------------------------------------------------
@@ -570,11 +634,13 @@ class _RelayHandler(BaseHTTPRequestHandler):
         beta = self.headers.get("anthropic-beta", "")
         if beta and _ANTHROPIC_BETA_RE.fullmatch(beta):
             headers["anthropic-beta"] = beta
-        req = Request(upstream_url, data=body, headers=headers, method="POST")
-        req.full_url = upstream_url
+        def make_request() -> Request:
+            req = Request(upstream_url, data=body, headers=headers, method="POST")
+            req.full_url = upstream_url
+            return req
         headers_sent = False
         try:
-            with urlopen(req, timeout=self.upstream_timeout) as resp:  # noqa: S310 - refuses redirects
+            with _urlopen_waiting_out_rate_limits(make_request, self.upstream_timeout, active=active) as resp:
                 status = int(resp.status)
                 if status != 200:
                     self._send_sanitized_error(status)
@@ -601,7 +667,7 @@ class _RelayHandler(BaseHTTPRequestHandler):
             from ..platform_v1.model_availability import availability_error
             reason = availability_error(exc.read(65536).decode("utf-8", errors="replace"))
             self._send_sanitized_error(int(exc.code), reason=reason)
-        except (IncompleteRead, URLError, OSError):
+        except (IncompleteRead, URLError, OSError, CredentialRelayError):
             self._end_failed_stream(headers_sent, anthropic=True)
 
     def _end_failed_stream(self, headers_sent: bool, *, anthropic: bool) -> None:
@@ -670,11 +736,13 @@ class _RelayHandler(BaseHTTPRequestHandler):
             "Content-Length": str(len(body)),
             "Accept": "text/event-stream",
         }
-        req = Request(upstream_url, data=body, headers=headers, method="POST")
-        req.full_url = upstream_url
+        def make_request() -> Request:
+            req = Request(upstream_url, data=body, headers=headers, method="POST")
+            req.full_url = upstream_url
+            return req
         headers_sent = False
         try:
-            with urlopen(req, timeout=self.upstream_timeout) as resp:  # noqa: S310
+            with _urlopen_waiting_out_rate_limits(make_request, self.upstream_timeout, active=active) as resp:
                 status = int(resp.status)
                 if status != 200:
                     self._send_sanitized_error(status)
@@ -695,7 +763,7 @@ class _RelayHandler(BaseHTTPRequestHandler):
             from ..platform_v1.model_availability import availability_error
             reason = availability_error(exc.read(65536).decode("utf-8", errors="replace"))
             self._send_sanitized_error(int(exc.code), reason=reason)
-        except (IncompleteRead, URLError, OSError):
+        except (IncompleteRead, URLError, OSError, CredentialRelayError):
             self._end_failed_stream(headers_sent, anthropic=False)
 
     def _send_json(self, code: int, payload: dict[str, Any]) -> None:
