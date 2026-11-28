@@ -1317,7 +1317,8 @@ def test_republishes_uncommented_blocked_head_and_routed_adapter_fallback(tmp_pa
                         lambda tid: SimpleNamespace(pr_number=1774) if tid == prior_task.id else None)
     monkeypatch.setattr(control, "list_goal_tasks", lambda gid: [])
     monkeypatch.setattr(control, "list_task_escalations", lambda gid: [{"from_task_id": prior_task.id}])
-    monkeypatch.setattr("reverse_agent.platform_v1.functional_validation.functional_evidence", lambda t: {"ok": True})
+    monkeypatch.setattr("reverse_agent.platform_v1.functional_validation.functional_evidence",
+                        lambda t: {"status": "VERIFIED", "verified": True, "run_id": ""})
     monkeypatch.setattr("reverse_agent.platform_v1.artifact_handoff._producer_worktree",
                         lambda ts, t, proof: prior_wt if t.id == prior_task.id else (_ for _ in ()).throw(TaskStoreError("missing")))
     verdict_ws = []
@@ -1340,6 +1341,70 @@ def test_republishes_uncommented_blocked_head_and_routed_adapter_fallback(tmp_pa
     with pytest.raises(TaskStoreError, match="landing_retained_workspace_required"):
         adapter.invoke_verdict({"goal_id": "missing-goal", "pr_number": 1, "repository": "dddd2024/Nerelan"}, "c1")
     store._conn.close()
+
+
+def test_routed_adapter_skips_ineligible_producers_and_keeps_read_only_fallback(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1 import functional_validation
+    from reverse_agent.platform_v1.github_adapter import GitHubAdapterError
+    from reverse_agent.platform_v1.live_landing import RoutedLandingGitHubAdapter, LiveLandingGitHubAdapter
+    from reverse_agent.platform_v1.run_store import TaskStoreError
+
+    good_wt = tmp_path / "good_wt"
+    good_wt.mkdir()
+    other_wt = tmp_path / "other_wt"
+    other_wt.mkdir()
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    workspaces = {"unverified": good_wt, "gone": tmp_path / "gone_wt", "other_pr": other_wt, "good": good_wt}
+    tasks = {task_id: SimpleNamespace(id=task_id, execution_id="exec-" + task_id, events=[
+        {"type": "WORKSPACE_READY", "metadata": {"execution_id": "exec-" + task_id, "workspace": str(path)}}])
+        for task_id, path in workspaces.items()}
+    goal_tasks = [{"task_id": "unverified"}, {"task_id": "gone"}, {"task_id": "other_pr"}]
+    control = SimpleNamespace(
+        task_store=SimpleNamespace(get_task=lambda task_id: tasks[task_id]),
+        list_goal_tasks=lambda goal_id: list(goal_tasks),
+        list_task_escalations=lambda goal_id: [],
+        get_publication=lambda task_id: SimpleNamespace(pr_number=99 if task_id == "other_pr" else 1805),
+    )
+    # The fallback proof of an unverified task has no run_id; the real worktree lookup is used for the rest.
+    monkeypatch.setattr(functional_validation, "functional_evidence", lambda task: (
+        {"status": "UNVERIFIED", "verified": False} if task.id == "unverified"
+        else {"status": "VERIFIED", "verified": True, "run_id": ""}))
+    monkeypatch.setattr("reverse_agent.platform_v1.repository_workspace.resolve_repository_workspace",
+                        lambda repo: SimpleNamespace(repo_dir=repo_dir))
+    calls = []
+    monkeypatch.setattr(LiveLandingGitHubAdapter, "observe_pr",
+                        lambda self, st: calls.append(("observe_pr", self.workspace)) or {"ok": True})
+    monkeypatch.setattr(LiveLandingGitHubAdapter, "invoke_verdict",
+                        lambda self, st, cid: calls.append(("invoke_verdict", self.workspace)) or {"passed": True})
+    monkeypatch.setattr(LiveLandingGitHubAdapter, "merge_head_matched",
+                        lambda self, st, cid: calls.append(("merge_head_matched", self.workspace)))
+    adapter = RoutedLandingGitHubAdapter(control)
+    state = {"goal_id": "g", "pr_number": 1805, "repository": "dddd2024/Nerelan", "head_sha": "a" * 40}
+
+    # Missing worktree and unverified proof are ineligible: read-only falls back, the rest fails closed.
+    assert adapter.observe_pr(state) == {"ok": True}
+    assert calls == [("observe_pr", str(repo_dir.resolve()))]
+    for name in ("invoke_verdict", "merge_head_matched"):
+        with pytest.raises(TaskStoreError, match="landing_retained_workspace_required"):
+            getattr(adapter, name)(state, "claim")
+    assert calls == [("observe_pr", str(repo_dir.resolve()))]
+
+    # A later verified producer with a present worktree wins for every operation.
+    goal_tasks.append({"task_id": "good"})
+    calls.clear()
+    assert adapter.observe_pr(state) == {"ok": True}
+    assert adapter.invoke_verdict(state, "claim") == {"passed": True}
+    adapter.merge_head_matched(state, "claim")
+    assert calls == [(name, str(good_wt.resolve()))
+                     for name in ("observe_pr", "invoke_verdict", "merge_head_matched")]
+
+    # Downstream GitHub errors from the chosen producer are not swallowed.
+    def failing(self, st):
+        raise GitHubAdapterError("landing_command_failed")
+    monkeypatch.setattr(LiveLandingGitHubAdapter, "observe_pr", failing)
+    with pytest.raises(GitHubAdapterError, match="landing_command_failed"):
+        adapter.observe_pr(state)
 
 
 def test_waiting_landing_ticks_skip_redundant_policy_receipts_and_audit_denials_and_writes(tmp_path, monkeypatch):
