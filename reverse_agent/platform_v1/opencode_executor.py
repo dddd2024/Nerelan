@@ -3848,7 +3848,7 @@ def _classify_exit(
             if status in (401, 403):
                 # One-api/new-api gateways answer an exhausted balance with 403 (#1533):
                 # a quota answer reroutes, an auth failure does not.
-                if _QUOTA_EXHAUSTED_RE.search(text):
+                if _GATEWAY_BALANCE_EXHAUSTED_RE.search(text):
                     return "quota_exhausted"
                 return "auth_provider_route_failure"
             if status in (503, 529):
@@ -3878,11 +3878,16 @@ def _classify_exit(
     return "executor_nonzero"
 
 
+# Only the affirmative balance answers of one-api/new-api style gateways turn a 401/403
+# into a quota answer; permission wording or a negated quota phrase stays an auth failure.
+_GATEWAY_BALANCE_EXHAUSTED_RE = re.compile(
+    r"\bfailed\s+to\s+pre-?consume\s+quota\b|\binsufficient[_ ](?:user[_ ])?(?:quota|balance)\b",
+    re.IGNORECASE)
+
 _QUOTA_EXHAUSTED_RE = re.compile(
     r"\b(quota[_ -]*(?:exhausted|depleted|used[_ -]?up|fully[_ -]?consumed)|"
     r"code\s*quota[_ -]?exhausted|"
     r"insufficient[_ -]?quota|"
-    r"failed\s+to\s+pre-?consume\s+quota|"
     r"quota\s+has\s+been\s+exhausted|"
     r"quota\s+is\s+exhausted|"
     r"quota\s+was\s+exhausted|"

@@ -380,3 +380,21 @@ def test_an_invalid_review_answer_names_why(monkeypatch, changes, detail):
     with pytest.raises(TaskStoreError) as error:
         transport.review("prompt", gateway(), None)
     assert str(error.value) == "model_review_invalid_output:" + detail
+
+
+
+def test_an_unknown_finish_reason_never_reaches_the_detail(monkeypatch):
+    # Review of #1816: provider values are allowlisted, never copied into persisted details.
+    reply = gateway_reply(choices=[{"finish_reason": "SYNTHETIC_SECRET_ABC123",
+                                    "message": {"role": "assistant", "content": ACCEPT}}])
+    monkeypatch.setattr(transport, "_post", lambda *args: reply)
+    with pytest.raises(TaskStoreError) as error:
+        transport.review("prompt", gateway(), None)
+    assert str(error.value) == "model_review_invalid_output:finish_reason_other"
+
+
+def test_an_unencodable_review_answer_keeps_its_class():
+    from reverse_agent.platform_v1.model_review import parse_response
+    with pytest.raises(TaskStoreError) as error:
+        parse_response("\ud800")
+    assert str(error.value) == "model_review_invalid_output:response_not_utf8"

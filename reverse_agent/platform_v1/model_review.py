@@ -255,7 +255,11 @@ def parse_response(text: str, *, normalize: bool = True) -> dict[str, Any]:
 def _invalid_reason(text: Any, exc: BaseException) -> str:
     if not isinstance(text, str):
         return "response_not_text"
-    if len(text.encode()) > 256 * 1024:
+    try:
+        size = len(text.encode())
+    except UnicodeEncodeError:
+        return "response_not_utf8"
+    if size > 256 * 1024:
         return "response_too_large"
     stripped = text.strip()
     if not stripped:

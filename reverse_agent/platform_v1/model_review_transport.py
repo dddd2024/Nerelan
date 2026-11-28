@@ -11,7 +11,6 @@ Two transports, one request shape and one set of answer checks:
 This module accepts only prompt text and connection identity, never a workspace.
 """
 import json
-import re
 from urllib.parse import urlsplit
 from urllib.request import Request
 from urllib.error import HTTPError, URLError
@@ -109,6 +108,8 @@ def group_member_served(selected, served, groups):
                 and model_identity(served, groups) == identity)
 
 
+_KNOWN_FINISH_REASONS = frozenset({"length", "content_filter", "tool_calls", "function_call"})
+
 def review(prompt, resolution, lease_provider, groups=None):
     validate_connection(resolution, lease_provider)
     lease = None
@@ -147,7 +148,9 @@ def review(prompt, resolution, lease_provider, groups=None):
         choice = choices[0]
         message = choice["message"]
         if choice.get("finish_reason") != "stop":
-            reason = re.sub(r"[^a-z0-9_]", "_", str(choice.get("finish_reason")).lower())[:40]
+            # Allowlisted: a provider value never reaches the persisted detail.
+            raw = choice.get("finish_reason")
+            reason = raw if raw in _KNOWN_FINISH_REASONS else "other"
             raise TaskStoreError("model_review_invalid_output:finish_reason_" + reason)
         if (message.get("role") != "assistant"
                 or message.get("tool_calls") or message.get("function_call")
